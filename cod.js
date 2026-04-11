@@ -1,7 +1,10 @@
 const express = require("express");
+const path = require("path");
 const app = express();
 
+// Ele vai buscar o HTML tanto se estiver solto quanto se estiver dentro da "public"
 app.use(express.static("public"));
+app.use(express.static(__dirname));
 
 const slides = [
     {
@@ -42,6 +45,8 @@ app.get("/api/slides", (req, res) => {
     res.json(slides);
 });
 
-app.listen(3000, () => {
-    console.log("Servidor rodando em http://localhost:3000");
+// Porta dinâmica para a internet da nuvem
+const p = process.env.PORT || 3000;
+app.listen(p, () => {
+    console.log("Servidor mágico rodando redondinho! 🚀");
 });
