@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Apresentação</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+            background: transparent; /* O background agora é a animação lá no HTML */
+            overflow: hidden;
+        }
+
+        .slide-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 55px;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+            transition: opacity 0.3s ease;
+        }
+
+        p {
+            font-size: 28px;
+            color: #d1d5db;
+            max-width: 800px;
+            line-height: 1.4;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Área dos Botões */
+        .botoes-container {
+            padding: 25px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            border-top: 1px solid #333;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #2a2a2a;
+            color: #eeeeee;
+            border: 1px solid #444;
+            padding: 14px 22px;
+            font-size: 18px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            background: #3a3a3a;
+            transform: translateY(-3px);
+            border-color: #666;
+            color: white;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .slide-container, .botoes-container {
+            position: relative;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 15px;
+            backdrop-filter: blur(5px);
+        }
+
+        .slide-container {
+            margin-bottom: auto;
+            margin-top: auto;
+            width: 80%;
+        }
+
+        /* ===== BACKGROUND EM VÍDEO ===== */
+        .video-bg {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            object-fit: cover;
+            filter: brightness(0.4); /* Escurece o vídeo para o texto ficar bem visível */
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Background animado em Vídeo -->
+    <video autoplay loop muted playsinline class="video-bg">
+        <source src="https://static.vecteezy.com/system/resources/previews/068/240/957/mp4/people-walking-across-a-crosswalk-in-a-city-video.mp4" type="video/mp4">
+    </video>
+
+    <div class="slide-container">
+        <h1 id="titulo">Carregando...</h1>
+        <p id="conteudo"></p>
+    </div>
+
+    <!-- Barra de navegação com os botões solicitados -->
+    <div class="botoes-container">
+        <button onclick="irPara(2)">🚦 Tecnologia nas cidades</button>
+        <button onclick="irPara(3)">💡 Iluminação Inteligente</button>
+        <button onclick="irPara(4)">🗑️ Gestão de Lixo</button>
+        <button onclick="irPara(5)">💧 Gestão da Água</button>
+        <button onclick="irPara(6)">🌱 Benefícios</button>
+    </div>
+
+    <script>
+        let slides = [];
+        let index = 0;
+
+        fetch("/api/slides")
+            .then(res => res.json())
+            .then(data => {
+                slides = data;
+                mostrarSlide();
+            });
+
+        function mostrarSlide() {
+            if (slides.length > 0) {
+                document.getElementById("titulo").innerText = slides[index].titulo;
+                document.getElementById("conteudo").innerText = slides[index].conteudo;
+            }
+        }
+
+        // Função chamada pelos botões para ir direto para um slide específico
+        function irPara(novoIndex) {
+            index = novoIndex;
+            mostrarSlide();
+        }
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowRight") {
+                index = (index + 1) % slides.length;
+            } else if (e.key === "ArrowLeft") {
+                index = (index - 1 + slides.length) % slides.length;
+            }
+            mostrarSlide();
+        });
+    </script>
+
+</body>
+
+</html>
