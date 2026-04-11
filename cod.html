@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Apresentação</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial;
+            background: #111;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 50px;
+        }
+
+        p {
+            font-size: 24px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div>
+        <h1 id="titulo"></h1>
+        <p id="conteudo"></p>
+    </div>
+
+    <script>
+        let slides = [];
+        let index = 0;
+
+        fetch("/api/slides")
+            .then(res => res.json())
+            .then(data => {
+                slides = data;
+                mostrarSlide();
+            });
+
+        function mostrarSlide() {
+            document.getElementById("titulo").innerText = slides[index].titulo;
+            document.getElementById("conteudo").innerText = slides[index].conteudo;
+        }
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowRight") {
+                index = (index + 1) % slides.length;
+            } else if (e.key === "ArrowLeft") {
+                index = (index - 1 + slides.length) % slides.length;
+            }
+            mostrarSlide();
+        });
+    </script>
+
+</body>
+
+</html>
