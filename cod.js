@@ -1,7 +1,9 @@
 const express = require("express");
+const path = require("path");
 const app = express();
 
 app.use(express.static("public"));
+app.use(express.static(__dirname));
 
 const slides = [
     {
@@ -42,6 +44,13 @@ app.get("/api/slides", (req, res) => {
     res.json(slides);
 });
 
-app.listen(3000, () => {
-    console.log("Servidor rodando em http://localhost:3000");
+// Força achar a página inicial
+app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// Utilizando porta dinâmica configurada pelo Render
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+    console.log(`Servidor rodando em http://localhost:${port}`);
 });
