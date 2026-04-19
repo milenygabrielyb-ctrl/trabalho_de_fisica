@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌍 Cidade Sustentável - Gestão Inteligente</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            height: 100vh; overflow: hidden;
+            display: flex; flex-direction: column;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: white; background: #0a0a1a;
+        }
+
+        /* HUD Superior */
+        #hud {
+            padding: 10px 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(0,0,0,0.85);
+            font-size: 16px; z-index: 50;
+            border-bottom: 1px solid #222;
+        }
+        #hud a {
+            color:#888; text-decoration:none; font-size:14px;
+            border:1px solid #444; padding:3px 12px; border-radius:6px;
+        }
+
+        /* Dashboard de Status */
+        #dashboard {
+            position: absolute; top: 70px; left: 20px;
+            width: 280px; background: rgba(0,0,0,0.7);
+            padding: 20px; border-radius: 15px; border: 1px solid #333;
+            backdrop-filter: blur(10px); z-index: 40;
+        }
+        .stat-row { margin-bottom: 15px; }
+        .stat-label { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 14px; }
+        .progress-bg { height: 10px; background: #222; border-radius: 5px; overflow: hidden; }
+        .progress-bar { height: 100%; width: 100%; transition: width 0.3s, background 0.3s; }
+        .bar-ar { background: #4ade80; }
+        .bar-agua { background: #3b82f6; }
+        .bar-lixo { background: #d946ef; }
+        .bar-energia { background: #facc15; }
+
+        /* Game Area */
+        #game-world { 
+            flex:1; position:relative; overflow:hidden; 
+            background: url('cidade_bg.png') center/cover no-repeat;
+        }
+        canvas { 
+            position:absolute; inset:0; width:100%; height:100%; 
+            pointer-events: none;
+        }
+
+        /* Eventos e Popups */
+        .event-node {
+            position: absolute; transform: translate(-50%, -50%);
+            width: 80px; height: 80px; 
+            border: 3px solid white; border-radius: 50%;
+            cursor: pointer; animation: pulse 1s infinite;
+            z-index: 30; box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            background-image: url('personagens.png');
+            background-size: 200% 200%;
+        }
+        
+        /* Posicionamento dos personagens no sprite sheet 2x2 */
+        .char-ar     { background-position: 0% 100%; }    /* Dr. Aris (Bottom Left) */
+        .char-agua   { background-position: 0% 0%; }      /* Sarah (Top Left) */
+        .char-lixo   { background-position: 100% 0%; }    /* Fatima (Top Right) */
+        .char-energia { background-position: 100% 100%; }  /* Ben (Bottom Right) */
+
+        .status-alert {
+            position: absolute; top: -10px; right: -10px;
+            background: #ef4444; color: white; width: 30px; height: 30px;
+            border-radius: 50%; display: flex; justify-content: center; align-items: center;
+            font-weight: bold; font-size: 20px; border: 2px solid white;
+        }
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.2); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+
+        #event-panel {
+            display: none; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); width: 350px;
+            background: white; color: #111; padding: 25px;
+            border-radius: 20px; z-index: 100; box-shadow: 0 40px 100px rgba(0,0,0,0.8);
+            text-align: center;
+        }
+        #event-panel h3 { margin-bottom: 10px; color: #ef4444; }
+        #event-panel p { margin-bottom: 20px; color: #444; font-size: 16px; }
+        .action-btn {
+            display: block; width: 100%; padding: 12px;
+            margin-bottom: 10px; border: none; border-radius: 10px;
+            font-weight: bold; cursor: pointer; transition: 0.2s;
+        }
+        .action-btn:hover { filter: brightness(0.9); transform: scale(1.02); }
+
+        /* Overlays */
+        .overlay {
+            position:absolute; inset:0; z-index:200;
+            display:flex; flex-direction:column; justify-content:center; align-items:center;
+            text-align:center; padding:20px;
+        }
+        #mayor-overlay { background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
+        #game-over { display:none; background: rgba(0,0,0,0.9); backdrop-filter: blur(10px); }
+
+        .mayor-content { display:flex; align-items:center; max-width:900px; gap:40px; }
+        .mayor-img { height:450px; mix-blend-mode:screen; filter:contrast(110%); }
+        .speech-bubble {
+            background:white; color:#111; padding:30px; border-radius:25px;
+            position:relative; font-size:22px; line-height:1.5;
+        }
+        .speech-bubble::after {
+            content:''; position:absolute; right:-20px; top:50%;
+            border:20px solid transparent; border-left-color:white; margin-top:-20px;
+        }
+
+        .btn {
+            padding:15px 40px; font-size:20px; font-weight:bold; border:none; border-radius:12px;
+            background:#22c55e; color:white; cursor:pointer; margin-top:20px;
+        }
+        .btn:hover { background:#16a34a; transform:scale(1.05); }
+
+        /* Energia Toggles */
+        #energy-controls {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 20px; z-index: 40;
+        }
+        .energy-btn {
+            padding: 15px 25px; border-radius: 15px; border: 2px solid #555;
+            background: rgba(0,0,0,0.6); color: white; cursor: pointer;
+            display: flex; align-items: center; gap: 10px; transition: 0.3s;
+        }
+        .energy-btn.active { border-color: #facc15; background: rgba(250, 204, 21, 0.2); }
+    </style>
+</head>
+<body>
+
+<div id="hud">
+    <span>🏙️ Cidade Inteligente | ⏱️ Tempo: <strong id="timer">00:00</strong></span>
+    <span>💡 Status: <strong id="game-status" style="color:#4ade80;">ESTÁVEL</strong></span>
+    <a href="index.html">← Menu</a>
+</div>
+
+<div id="game-world">
+    <canvas id="cv"></canvas>
+
+    <!-- Dashboard de Indicadores -->
+    <div id="dashboard">
+        <div class="stat-row">
+            <div class="stat-label"><span>🌫️ Ar</span> <span id="val-ar">100%</span></div>
+            <div class="progress-bg"><div id="bar-ar" class="progress-bar bar-ar"></div></div>
+        </div>
+        <div class="stat-row">
+            <div class="stat-label"><span>💧 Água</span> <span id="val-agua">100%</span></div>
+            <div class="progress-bg"><div id="bar-agua" class="progress-bar bar-agua"></div></div>
+        </div>
+        <div class="stat-row">
+            <div class="stat-label"><span>🗑️ Lixo</span> <span id="val-lixo">100%</span></div>
+            <div class="progress-bg"><div id="bar-lixo" class="progress-bar bar-lixo"></div></div>
+        </div>
+        <div class="stat-row">
+            <div class="stat-label"><span>🔋 Energia</span> <span id="val-energia">100%</span></div>
+            <div class="progress-bg"><div id="bar-energia" class="progress-bar bar-energia"></div></div>
+        </div>
+    </div>
+
+    <!-- Controles de Energia -->
+    <div id="energy-controls" style="text-align:center;">
+        <div style="font-size:12px; color:#aaa; margin-bottom:10px;">GERENCIAMENTO ATIVO: Ligue as fontes para carregar a bateria</div>
+        <div style="display:flex; gap:20px;">
+            <button id="btn-solar" class="energy-btn" onclick="toggleEnergy('solar')">☀️ Solar <br><small id="solar-status">(Carrega de Dia)</small></button>
+            <button id="btn-eolica" class="energy-btn" onclick="toggleEnergy('eolica')">🌬️ Eólica <br><small>(Carrega sempre)</small></button>
+        </div>
+    </div>
+
+    <!-- Painel de Evento -->
+    <div id="event-panel">
+        <h3 id="event-title">ALERTA!</h3>
+        <p id="event-desc">Um problema foi detectado na cidade.</p>
+        <div id="event-actions"></div>
+    </div>
+
+    <!-- NPC Prefeito Intro -->
+    <div id="mayor-overlay" class="overlay">
+        <div class="mayor-content">
+            <div class="speech-bubble">
+                “Nossa cidade depende de decisões inteligentes. Sensores nos mostram os problemas… mas é você quem decide como resolvê-los. Mantenha o equilíbrio e construa um futuro sustentável!”
+            </div>
+            <img src="prefeito.png" class="mayor-img" alt="Prefeito">
+        </div>
+        <button class="btn" onclick="iniciarJogo()">CUIDAR DA CIDADE</button>
+    </div>
+
+    <!-- Game Over -->
+    <div id="game-over" class="overlay">
+        <h1 id="go-title" style="font-size:60px; margin-bottom:20px;"></h1>
+        <div class="mayor-content" style="max-width:700px; background:rgba(255,255,255,0.05); padding:20px; border-radius:20px;">
+             <img src="prefeito.png" style="height:150px; mix-blend-mode:screen;">
+             <p id="go-msg" style="font-size:20px; text-align:left;"></p>
+        </div>
+        <button class="btn" onclick="location.reload()">Tentar Novamente</button>
+        <p style="margin-top:20px;"><a href="index.html" style="color:#888;">Voltar ao Menu</a></p>
+    </div>
+</div>
+
+<script>
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+const gw = document.getElementById("game-world");
+
+let W, H;
+function resize() { W = cv.width = gw.offsetWidth; H = cv.height = gw.offsetHeight; }
+resize();
+window.addEventListener("resize", resize);
+
+// Estado Global
+let stats = { ar: 100, agua: 100, lixo: 100, energia: 100 };
+let gameTime = 0, isRunning = false, isOver = false;
+let activeEvent = null;
+let energyModes = { solar: false, eolica: false };
+let dayTime = true; 
+let eventBag = []; // Sacola para intercalar personagens
+let tickId, spawnId;
+
+// Tipos de Eventos
+const EVENT_TYPES = [
+    { 
+        id:'transito', title:'Trânsito Intenso', icon:'🚗', 
+        desc:'A poluição do ar está subindo rápido!', 
+        target:'ar', impact:-15, 
+        actions: [
+            { text:'🚍 Liberar Ônibus Grátis', resolve:12, ar:8 },
+            { text:'🚲 Criar Ciclovia', resolve:10, ar:6 }
+        ]
+    },
+    { 
+        id:'fabrica', title:'Fábrica Poluindo', icon:'⚙️', 
+        desc:'Uma chaminé está sem filtros!', 
+        target:'ar', impact:-20,
+        actions: [
+            { text:'🚫 Multar Fábrica', resolve:20, ar:12 },
+            { text:'♻️ Instalar Filtros', resolve:15, ar:10 }
+        ]
+    },
+    { 
+        id:'esgoto', title:'Esgoto Irregular', icon:'🤢', 
+        desc:'Resíduos no rio detectados!', 
+        target:'agua', impact:-18,
+        actions: [
+            { text:'💧 Tratar Água', resolve:18, agua:10 },
+            { text:'🛡️ Fiscalizar Dutos', resolve:12, agua:8 }
+        ]
+    },
+    { 
+        id:'vazamento', title:'Desperdício Médio', icon:'🔧', 
+        desc:'Cano mestre estourou!', 
+        target:'agua', impact:-15,
+        actions: [
+            { text:'🔧 Consertar Rápido', resolve:15, agua:12 }
+        ]
+    },
+    { 
+        id:'lixo_acumulado', title:'Lixo Acumulado', icon:'🗑️', 
+        desc:'Vários cestos transbordando!', 
+        target:'lixo', impact:-15,
+        actions: [
+            { text:'🚛 Otimizar Rotas', resolve:20, lixo:15 },
+            { text:'🔁 Chamar Reforço', resolve:12, lixo:8 }
+        ]
+    },
+    { 
+        id:'descarte_rua', title:'Descarte na Rua', icon:'🚯', 
+        desc:'Lixo jogado fora da lixeira!', 
+        target:'lixo', impact:-12,
+        actions: [
+            { text:'🧹 Mutirão Limpeza', resolve:15, lixo:12 },
+            { text:'📢 Campanha Edu.', resolve:10, lixo:8 }
+        ]
+    },
+    { 
+        id:'apagao', title:'Risco de Apagão', icon:'⚡', 
+        desc:'Consumo excessivo na zona norte!', 
+        target:'energia', impact:-25,
+        actions: [
+            { text:'🔋 Liberar Redundância', resolve:15, energia:15 },
+            { text:'📉 Racionamento Leve', resolve:10, energia:10 }
+        ]
+    },
+    { 
+        id:'sobrecarga', title:'Sobrecarga na Rede', icon:'💥', 
+        desc:'Transformadores superaquecendo!', 
+        target:'energia', impact:-20,
+        actions: [
+            { text:'❄️ Resfriar Sistema', resolve:12, energia:12 },
+            { text:'⚙️ Desviar Carga', resolve:15, energia:10 }
+        ]
+    }
+];
+
+function iniciarJogo() {
+    document.getElementById("mayor-overlay").style.display = "none";
+    isRunning = true;
+    tickId = setInterval(tick, 1000);
+    spawnId = setInterval(spawnEvent, 4000); // Voltou para 4s (mais calmo)
+    drawBaseCity();
+}
+
+function toggleEnergy(type) {
+    energyModes[type] = !energyModes[type];
+    document.getElementById(`btn-${type}`).classList.toggle("active");
+}
+
+function spawnEvent() {
+    if(!isRunning || activeEvent) return;
+    
+    // Sistema de Sacola para intercalar categorias
+    if(eventBag.length === 0) {
+        eventBag = ['ar', 'agua', 'lixo', 'energia'];
+        // Shuffle the bag
+        for (let i = eventBag.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [eventBag[i], eventBag[j]] = [eventBag[j], eventBag[i]];
+        }
+    }
+    
+    const targetCategory = eventBag.pop();
+    const possibleEvents = EVENT_TYPES.filter(e => e.target === targetCategory);
+    const type = possibleEvents[Math.floor(Math.random() * possibleEvents.length)];
+    
+    const x = 150 + Math.random() * (W - 300);
+    const y = 150 + Math.random() * (H - 300);
+    
+    const node = document.createElement("div");
+    node.className = `event-node char-${type.target}`;
+    
+    const alert = document.createElement("div");
+    alert.className = "status-alert";
+    alert.innerText = "!";
+    node.appendChild(alert);
+
+    node.style.left = x + "px";
+    node.style.top = y + "px";
+    
+    node.onclick = () => showEvent(type, node);
+    gw.appendChild(node);
+    
+    // Auto-fail se não clicar em 8s (mais tempo para reagir)
+    node.timer = setTimeout(() => {
+        if(gw.contains(node)) {
+            stats[type.target] += type.impact;
+            node.remove();
+        }
+    }, 8000);
+}
+
+function showEvent(type, node) {
+    if(activeEvent) return;
+    activeEvent = type;
+    clearTimeout(node.timer);
+    node.remove();
+    
+    const panel = document.getElementById("event-panel");
+    const actionsCont = document.getElementById("event-actions");
+    
+    document.getElementById("event-title").innerText = type.title;
+    document.getElementById("event-desc").innerText = type.desc;
+    actionsCont.innerHTML = "";
+    
+    type.actions.forEach(act => {
+        const b = document.createElement("button");
+        b.className = "action-btn";
+        b.innerText = act.text;
+        b.style.background = "#eee";
+        b.onclick = () => resolveEvent(act);
+        actionsCont.appendChild(b);
+    });
+    
+    panel.style.display = "block";
+}
+
+function resolveEvent(action) {
+    if(action.ar) stats.ar = Math.min(100, stats.ar + action.ar);
+    if(action.agua) stats.agua = Math.min(100, stats.agua + action.agua);
+    if(action.lixo) stats.lixo = Math.min(100, stats.lixo + action.lixo);
+    
+    document.getElementById("event-panel").style.display = "none";
+    activeEvent = null;
+    updateHUD();
+}
+
+function tick() {
+    if(!isRunning) return;
+    gameTime++;
+    
+    // Atualizar Timer
+    const m = Math.floor(gameTime / 60).toString().padStart(2, '0');
+    const s = (gameTime % 60).toString().padStart(2, '0');
+    document.getElementById("timer").innerText = `${m}:${s}`;
+    
+    // Drenagem passiva de recursos (cidade consome) - Reduzido para dar mais tempo
+    stats.ar -= 0.6;
+    stats.agua -= 0.6;
+    stats.lixo -= 0.8;
+    
+    // Lógica de cansaço de energia
+    let energyNeed = 1.0;
+    if(energyModes.solar) {
+        if(dayTime) stats.energia = Math.min(100, stats.energia + 2);
+        else stats.energia -= 1; // Solar consome bateria à noite
+    }
+    if(energyModes.eolica) stats.energia = Math.min(100, stats.energia + 1);
+    
+    stats.energia -= energyNeed;
+    
+    // Ciclo Dia/Noite Visual
+    if(gameTime % 30 === 0) {
+        dayTime = !dayTime;
+        document.getElementById("solar-status").innerText = dayTime ? "(Carregando ⚡)" : "(Sem sol 🌑)";
+    }
+
+    updateHUD();
+    checkGameOver();
+    drawBaseCity();
+}
+
+function updateHUD() {
+    for(let k in stats) {
+        if(stats[k] < 0) stats[k] = 0;
+        const bar = document.getElementById(`bar-${k}`);
+        const val = document.getElementById(`val-${k}`);
+        bar.style.width = stats[k] + "%";
+        val.innerText = Math.round(stats[k]) + "%";
+        
+        if(stats[k] < 30) bar.style.background = "#ef4444";
+        else bar.style.background = getResourceColor(k);
+    }
+}
+
+function getResourceColor(k) {
+    if(k==='ar') return '#4ade80';
+    if(k==='agua') return '#3b82f6';
+    if(k==='lixo') return '#d946ef';
+    return '#facc15';
+}
+
+function checkGameOver() {
+    let failed = false;
+    for(let k in stats) if(stats[k] <= 0) failed = true;
+    
+    if(failed) {
+        endGame(false);
+    } else if(gameTime >= 120) { // 2 minutos para "ganhar" (ou ser eterno)
+        endGame(true);
+    }
+}
+
+function endGame(win) {
+    isRunning = false; isOver = true;
+    clearInterval(tickId); clearInterval(spawnId);
+    
+    const go = document.getElementById("game-over");
+    const tit = document.getElementById("go-title");
+    const msg = document.getElementById("go-msg");
+    
+    go.style.display = "flex";
+    if(win) {
+        tit.innerText = "🏆 CIDADE EXEMPLAR!";
+        tit.style.color = "#4ade80";
+        msg.innerText = "“Excelente! Você manteve a cidade limpa, eficiente e sustentável. Esse é o futuro que queremos construir.”";
+    } else {
+        tit.innerText = "💥 COLAPSO URBANO";
+        tit.style.color = "#ef4444";
+        msg.innerText = "“A cidade saiu do controle… poluição, desperdício e má gestão cobram seu preço. Vamos tentar novamente com mais estratégia.”";
+    }
+}
+
+// ── Renderização ──
+function drawBaseCity() {
+    ctx.clearRect(0,0,W,H);
+    // Canvas agora é usado apenas para efeitos de sobreposição (ex: poluição visual se os stats caírem)
+    
+    if(stats.ar < 40) {
+        ctx.fillStyle = "rgba(100, 100, 100, 0.4)";
+        ctx.fillRect(0,0,W,H);
+    }
+
+    // Overlay Dia/Noite
+    if(!dayTime) {
+        ctx.fillStyle = "rgba(0,0,40,0.35)";
+        ctx.fillRect(0,0,W,H);
+    }
+}
+
+window.onload = drawBaseCity;
+</script>
+
+</body>
+</html>
