@@ -2,7 +2,6 @@ const express = require("express");
 const path = require("path");
 const app = express();
 
-// Ele vai buscar o HTML tanto se estiver solto quanto se estiver dentro da "public"
 app.use(express.static("public"));
 app.use(express.static(__dirname));
 
@@ -45,8 +44,13 @@ app.get("/api/slides", (req, res) => {
     res.json(slides);
 });
 
-// Porta dinâmica para a internet da nuvem
-const p = process.env.PORT || 3000;
-app.listen(p, () => {
-    console.log("Servidor mágico rodando redondinho! 🚀");
+// Força achar a página inicial
+app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// Utilizando porta dinâmica configurada pelo Render
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+    console.log(`Servidor rodando em http://localhost:${port}`);
 });
