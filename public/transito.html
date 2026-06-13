@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🚦 Travessia Perigosa</title>
+    <link rel="stylesheet" href="global.css">
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body {
@@ -819,12 +820,17 @@ function endGame(win = false) {
         resIcon.innerText = "🏆";
         resText.innerHTML = `<div style="display:flex; align-items:center; gap:15px; background:rgba(255,255,255,0.05); padding:15px; border-radius:15px; text-align:left;">
             <img src="prefeito.png" style="height:100px; mix-blend-mode:screen;">
-            <div>“Mandou bem! Em uma cidade inteligente, decisões como a sua fazem o trânsito fluir melhor para todos.”</div>
-        </div><br><strong>Você percorreu os ${currentGoal} metros! Próxima meta: ${currentGoal + 500}m</strong>`;
-        goBtn.innerText = "Continuar";
-        currentGoal += 500;
-        document.getElementById("maxDist").innerText = currentGoal;
+            <div>“Mandou bem! Em uma cidade inteligente, decisões como a sua fazem o trânsito fluir melhor para todos. Veja o impacto no Hub de Benefícios!”</div>
+        </div>`;
+        goBtn.innerText = "VER BENEFÍCIOS";
+        goBtn.onclick = () => location.href = "beneficios.html";
+        
+        let hubData = { agua: 10, energia: 20, transito: 10, ecologia: 10 };
+        try { let stored = localStorage.getItem('smartCity_Stats'); if(stored) hubData = JSON.parse(stored); } catch(e) {}
+        hubData.transito = Math.min(100, hubData.transito + 30); // Grows progresively
+        localStorage.setItem('smartCity_Stats', JSON.stringify(hubData));
     } else {
+        goBtn.onclick = () => location.reload();
         resIcon.innerText = "💥";
         resText.innerHTML = `<div style="display:flex; align-items:center; gap:15px; background:rgba(255,255,255,0.05); padding:15px; border-radius:15px; text-align:left;">
             <img src="prefeito.png" style="height:100px; mix-blend-mode:screen;">

@@ -18,7 +18,6 @@ function iniciarJogo(id) {
     if (id === 1) jogarTransito(area);
     if (id === 2) jogarIluminacao(area);
     if (id === 3) jogarLixo(area);
-    if (id === 4) jogarAgua(area);
     if (id === 5) jogarPlantio(area);
 }
 
@@ -240,67 +239,233 @@ function jogarLixo(area) {
 // JOGO 4: GESTÃO DA ÁGUA
 // ========================
 function jogarAgua(area) {
-    document.getElementById("titulo").innerText = "💧 Gestão da Água";
+    document.getElementById("titulo").innerText = "Gestão da Água";
 
-    let score = 0;
-    let isGameOver = false;
+    const SVGS = {
+        pipe: `<svg viewBox="0 0 40 40" width="40" height="40"><path d="M10,0 L30,0 L30,10 L40,10 L40,30 L30,30 L30,40 L10,40 L10,30 L0,30 L0,10 L10,10 Z" fill="#64748b"/><path d="M15,5 L25,5 L25,10 L35,10 L35,20 L5,20 L5,10 L15,10 Z" fill="#94a3b8"/></svg>`,
+        houseBlue: `<svg viewBox="0 0 40 40" width="45" height="45"><polygon points="20,5 35,20 35,35 5,35 5,20" fill="#cbd5e1" stroke="#334155" stroke-width="2"/><polygon points="0,20 20,0 40,20" fill="#3b82f6" stroke="#1e3a8a" stroke-width="2"/><rect x="15" y="22" width="10" height="13" fill="#64748b"/></svg>`,
+        houseRed: `<svg viewBox="0 0 40 40" width="45" height="45"><polygon points="20,5 35,20 35,35 5,35 5,20" fill="#cbd5e1" stroke="#334155" stroke-width="2"/><polygon points="0,20 20,0 40,20" fill="#ef4444" stroke="#7f1d1d" stroke-width="2"/><rect x="15" y="22" width="10" height="13" fill="#64748b"/></svg>`,
+        dropDirty: `<svg viewBox="0 0 30 40" width="35" height="45"><path d="M15,0 C15,0 0,15 0,25 C0,33 6.7,40 15,40 C23.3,40 30,33 30,25 C30,15 15,0 15,0 Z" fill="#8c5835" /></svg>`,
+        dropClean: `<svg viewBox="0 0 30 40" width="35" height="45"><path d="M15,0 C15,0 0,15 0,25 C0,33 6.7,40 15,40 C23.3,40 30,33 30,25 C30,15 15,0 15,0 Z" fill="#22c55e" /></svg>`,
+        bacteria: `<svg viewBox="0 0 40 40" width="40" height="40"><circle cx="20" cy="20" r="12" fill="#8b5cf6" /><circle cx="10" cy="10" r="5" fill="#a78bfa" /><circle cx="30" cy="10" r="4" fill="#a78bfa" /><circle cx="10" cy="30" r="4" fill="#a78bfa" /><circle cx="30" cy="30" r="6" fill="#a78bfa" /><circle cx="20" cy="5" r="3" fill="#a78bfa" /><circle cx="20" cy="35" r="3" fill="#a78bfa" /><circle cx="5" cy="20" r="3" fill="#a78bfa" /><circle cx="35" cy="20" r="3" fill="#a78bfa" /></svg>`
+    };
 
-    const ui = document.createElement("div");
-    ui.style.marginBottom = "10px";
-    ui.innerHTML = `<h3>Monitore os canos e clique rápido naqueles que vazarem água azul piscante!</h3>
-                    <p style="font-size:18px;">Vazamentos Consertados: <strong id="agua">0</strong>/15</p>`;
-    area.appendChild(ui);
+    function resetPhase() {
+        clearInterval(gameLoop);
+        area.innerHTML = "";
+    }
 
-    const playArea = document.createElement("div");
-    playArea.style.position = "relative";
-    playArea.style.width = "100%";
-    playArea.style.height = "100%";
-    area.appendChild(playArea);
+    function showTransition(msg, callback) {
+        resetPhase();
+        area.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;"><h2 style="color:#60a5fa;text-shadow:1px 1px 2px #000;text-align:center;">${msg}</h2></div>`;
+        setTimeout(callback, 2500);
+    }
 
-    for (let i = 0; i < 15; i++) {
-        const pipe = document.createElement("div");
-        pipe.innerText = "🔧";
-        pipe.style.position = "absolute";
-        pipe.style.fontSize = "35px";
-        pipe.style.cursor = "pointer";
-        pipe.style.userSelect = "none";
-        pipe.style.left = Math.floor(Math.random() * 85) + "%";
-        pipe.style.top = Math.floor(Math.random() * 70) + "%";
-        pipe.style.filter = "grayscale(100%)";
-        pipe.dataset.leaking = "false";
+    function finishGame() {
+        resetPhase();
+        area.innerHTML = `<h2 style="color:#22c55e; margin-bottom: 10px;">🎉 Missão Cumprida: Nível Singapura!</h2>
+        <div style="text-align:left; max-width:500px; margin:auto; background:rgba(0,0,0,0.5); padding:15px; border-radius:10px;">
+            <p style="margin-top:0; font-size:18px;"><strong>Power-ups conquistados:</strong></p>
+            <ul style="font-size:18px; list-style:none; padding:0; margin:0;">
+                <li style="margin-bottom:5px;">Evita desperdício</li>
+                <li style="margin-bottom:5px;">Reduz perdas públicas</li>
+                <li style="margin-bottom:5px;">Garante segurança</li>
+                <li>Melhora o planejamento urbano</li>
+            </ul>
+        </div>`;
+    }
 
-        pipe.onmousedown = () => {
-            if (pipe.dataset.leaking === "true" && !isGameOver) {
-                pipe.dataset.leaking = "false";
-                pipe.style.filter = "grayscale(100%)";
-                pipe.style.transform = "scale(1.2)";
-                setTimeout(() => { pipe.style.transform = "scale(1)"; }, 150);
-                score++;
-                document.getElementById("agua").innerText = score;
+    function iniciarFase1() {
+        let score = 0;
+        let active = true;
+        const ui = document.createElement("div");
+        ui.innerHTML = `<h3>Fase 1: Caça-vazamentos</h3><p style="margin:5px 0;">Conserte: <strong id="p1">0</strong>/8</p>`;
+        area.appendChild(ui);
+        const playArea = document.createElement("div");
+        playArea.style.position = "relative"; playArea.style.width = "100%"; playArea.style.height = "220px";
+        area.appendChild(playArea);
 
-                if (score === 15) {
-                    isGameOver = true;
-                    setTimeout(() => {
-                        area.innerHTML = `<h2 style="color:#60a5fa;">🎉 Água Poupada!</h2>
-                                          <p>Os sensores IoT detectaram as fissuras na rede e você resolveu sem desperdiçar uma gota.</p>`;
-                    }, 500);
+        for (let i = 0; i < 10; i++) {
+            const pipe = document.createElement("div");
+            pipe.innerHTML = SVGS.pipe; pipe.style.position = "absolute"; pipe.style.cursor = "pointer";
+            pipe.style.left = Math.floor(Math.random() * 85) + "%"; pipe.style.top = Math.floor(Math.random() * 70) + "%";
+            pipe.style.filter = "grayscale(100%)"; pipe.dataset.leaking = "false";
+
+            pipe.onmousedown = () => {
+                if (pipe.dataset.leaking === "true" && active) {
+                    pipe.dataset.leaking = "false"; pipe.style.filter = "grayscale(100%)";
+                    score++; document.getElementById("p1").innerText = score;
+                    if (score >= 8) { active = false; showTransition("Parabéns! Fase concluída.", iniciarFase2); }
                 }
-            }
-        };
-        playArea.appendChild(pipe);
-    }
-
-    function leak() {
-        if (isGameOver) return;
-        const pipes = playArea.children;
-        const p = pipes[Math.floor(Math.random() * pipes.length)];
-        if (p.dataset.leaking === "false") {
-            p.dataset.leaking = "true";
-            p.style.filter = "drop-shadow(0 0 10px #3b82f6) hue-rotate(180deg) brightness(200%)";
+            };
+            playArea.appendChild(pipe);
         }
+
+        gameLoop = setInterval(() => {
+            if(!active) return;
+            const pipes = playArea.children;
+            const p = pipes[Math.floor(Math.random() * pipes.length)];
+            if (p.dataset.leaking === "false") {
+                p.dataset.leaking = "true";
+                p.style.filter = "drop-shadow(0 0 10px #3b82f6) hue-rotate(180deg) brightness(200%)";
+            }
+        }, 650);
     }
 
-    gameLoop = setInterval(leak, 650);
+    function iniciarFase2() {
+        let score = 0; let active = true;
+        const ui = document.createElement("div");
+        ui.innerHTML = `<h3>Fase 2: Mestre do consumo</h3><p style="margin:5px 0;">Casas ajustadas: <strong id="p2">0</strong>/8</p>`;
+        area.appendChild(ui);
+        const playArea = document.createElement("div");
+        playArea.style.position = "relative"; playArea.style.width = "100%"; playArea.style.height = "220px";
+        area.appendChild(playArea);
+
+        for (let i = 0; i < 8; i++) {
+            const house = document.createElement("div");
+            house.innerHTML = SVGS.houseBlue; house.style.position = "absolute"; house.style.cursor = "pointer";
+            house.style.left = Math.floor(Math.random() * 85) + "%"; house.style.top = Math.floor(Math.random() * 70) + "%";
+            house.dataset.high = "false";
+
+            house.onmousedown = () => {
+                if (house.dataset.high === "true" && active) {
+                    house.dataset.high = "false"; 
+                    house.innerHTML = SVGS.houseBlue;
+                    house.style.filter = "none";
+                    score++; document.getElementById("p2").innerText = score;
+                    if (score >= 8) { active = false; showTransition("Consumo controlado!", iniciarFase3); }
+                }
+            };
+            playArea.appendChild(house);
+        }
+
+        gameLoop = setInterval(() => {
+            if(!active) return;
+            const houses = playArea.children;
+            const h = houses[Math.floor(Math.random() * houses.length)];
+            if (h.dataset.high === "false") {
+                h.dataset.high = "true";
+                h.innerHTML = SVGS.houseRed;
+                h.style.filter = "drop-shadow(0 0 15px red) sepia(50%) saturate(200%)";
+            }
+        }, 800);
+    }
+
+    function iniciarFase3() {
+        let score = 0; let active = true;
+        const ui = document.createElement("div");
+        ui.innerHTML = `<h3>Fase 3: Reuso inteligente</h3><p style="margin:5px 0;">Água tratada: <strong id="p3">0</strong>/6</p>`;
+        area.appendChild(ui);
+        const playArea = document.createElement("div");
+        playArea.style.position = "relative"; playArea.style.width = "100%"; playArea.style.height = "220px";
+        area.appendChild(playArea);
+
+        gameLoop = setInterval(() => {
+            if(!active) return;
+            const drop = document.createElement("div");
+            drop.innerHTML = SVGS.dropDirty; drop.style.position = "absolute"; drop.style.cursor = "pointer";
+            drop.style.left = Math.floor(Math.random() * 85) + "%"; drop.style.top = "0px";
+            playArea.appendChild(drop);
+
+            drop.onmousedown = () => {
+                if(!active) return;
+                drop.innerHTML = SVGS.dropClean;
+                setTimeout(() => { if (playArea.contains(drop)) drop.remove(); }, 200);
+                score++; document.getElementById("p3").innerText = score;
+                if (score >= 6) { active = false; showTransition("Reuso ativado!", iniciarFase4); }
+            };
+
+            let top = 0;
+            const fall = setInterval(() => {
+                if(!active || !playArea.contains(drop)) { clearInterval(fall); return; }
+                top += 3; drop.style.top = top + "px";
+                if (top > 250) { clearInterval(fall); drop.remove(); }
+            }, 50);
+        }, 1200);
+    }
+
+    function iniciarFase4() {
+        let score = 0; let active = true;
+        const ui = document.createElement("div");
+        ui.innerHTML = `<h3>Fase 4: Água segura</h3><p style="margin:5px 0;">Vírus eliminados: <strong id="p4">0</strong>/8</p>`;
+        area.appendChild(ui);
+        const playArea = document.createElement("div");
+        playArea.style.position = "relative"; playArea.style.width = "100%"; playArea.style.height = "220px";
+        playArea.style.borderBottom = "15px solid #3b82f6";
+        area.appendChild(playArea);
+
+        gameLoop = setInterval(() => {
+            if(!active) return;
+            const bacteria = document.createElement("div");
+            bacteria.innerHTML = SVGS.bacteria; bacteria.style.position = "absolute"; bacteria.style.cursor = "pointer";
+            bacteria.style.left = Math.floor(Math.random() * 85) + "%"; bacteria.style.top = "0px";
+            playArea.appendChild(bacteria);
+
+            bacteria.onmousedown = () => {
+                if(!active) return;
+                bacteria.remove();
+                score++; document.getElementById("p4").innerText = score;
+                if (score >= 8) { active = false; showTransition("Alerta! Chefão detectado!", iniciarBoss); }
+            };
+
+            let top = 0;
+            const fall = setInterval(() => {
+                if(!active || !playArea.contains(bacteria)) { clearInterval(fall); return; }
+                top += 4; bacteria.style.top = top + "px";
+                if (top > 230) { clearInterval(fall); bacteria.remove(); }
+            }, 50);
+        }, 1000);
+    }
+
+    function iniciarBoss() {
+        let tempo = 15; let active = true;
+        const ui = document.createElement("div");
+        ui.innerHTML = `<h3 style="color:#facc15;">Boss: Singapura!</h3><p style="margin:5px 0;">Resolva os problemas rápido! Tempo: <strong id="bossTime">${tempo}</strong>s</p>`;
+        area.appendChild(ui);
+        const playArea = document.createElement("div");
+        playArea.style.position = "relative"; playArea.style.width = "100%"; playArea.style.height = "220px";
+        area.appendChild(playArea);
+
+        gameLoop = setInterval(() => {
+            if(!active) return;
+            const tipo = Math.floor(Math.random() * 3);
+            const el = document.createElement("div");
+            el.style.position = "absolute"; el.style.cursor = "pointer";
+            el.style.left = Math.floor(Math.random() * 85) + "%";
+
+            if (tipo === 0) {
+                el.innerHTML = SVGS.pipe; el.style.top = Math.floor(Math.random() * 70) + "%";
+                el.style.filter = "drop-shadow(0 0 10px #3b82f6) hue-rotate(180deg) brightness(200%)";
+                el.onmousedown = () => el.remove();
+            } else if (tipo === 1) {
+                el.innerHTML = SVGS.houseRed; el.style.top = Math.floor(Math.random() * 70) + "%";
+                el.style.filter = "drop-shadow(0 0 15px red) sepia(50%) saturate(200%)";
+                el.onmousedown = () => el.remove();
+            } else {
+                el.innerHTML = SVGS.bacteria; el.style.top = "0px";
+                let top = 0;
+                const fall = setInterval(() => {
+                    if(!active || !playArea.contains(el)) { clearInterval(fall); return; }
+                    top += 4; el.style.top = top + "px";
+                    if(top > 250) { clearInterval(fall); el.remove(); }
+                }, 50);
+                el.onmousedown = () => { clearInterval(fall); el.remove(); };
+            }
+            playArea.appendChild(el);
+        }, 600);
+
+        const countdown = setInterval(() => {
+            if(!active) { clearInterval(countdown); return; }
+            tempo--; document.getElementById("bossTime").innerText = tempo;
+            if (tempo <= 0) {
+                active = false;
+                clearInterval(countdown);
+                finishGame();
+            }
+        }, 1000);
+    }
+
+    iniciarFase1();
 }
 
 // ========================

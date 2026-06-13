@@ -4,167 +4,204 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Apresentação</title>
+    <title>Smart City Arcade</title>
+    <link rel="stylesheet" href="global.css">
     <style>
         body {
             margin: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: white;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             text-align: center;
-            background: transparent; /* O background agora é a animação lá no HTML */
             overflow: hidden;
+            background: #000;
         }
 
-        .slide-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-
-        h1 {
-            font-size: 55px;
-            margin-bottom: 20px;
-            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
-            transition: opacity 0.3s ease;
-        }
-
-        p {
-            font-size: 28px;
-            color: #d1d5db;
-            max-width: 800px;
-            line-height: 1.4;
-            transition: opacity 0.3s ease;
-        }
-
-        /* Área dos Botões */
-        .botoes-container {
-            padding: 25px;
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-            justify-content: center;
-            width: 100%;
-            background: rgba(0, 0, 0, 0.4);
-            border-top: 1px solid #333;
-            box-sizing: border-box;
-        }
-
-        button {
-            background: #2a2a2a;
-            color: #eeeeee;
-            border: 1px solid #444;
-            padding: 14px 22px;
-            font-size: 18px;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        button:hover {
-            background: #3a3a3a;
-            transform: translateY(-3px);
-            border-color: #666;
-            color: white;
-            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
-        }
-
-        button:active {
-            transform: translateY(0);
-        }
-
-        .slide-container, .botoes-container {
-            position: relative;
-            z-index: 10;
-            background: rgba(0, 0, 0, 0.6);
-            border-radius: 15px;
-            backdrop-filter: blur(5px);
-        }
-
-        .slide-container {
-            margin-bottom: auto;
-            margin-top: auto;
-            width: 80%;
-        }
-
-        /* ===== BACKGROUND EM VÍDEO ===== */
         .video-bg {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: -1;
             object-fit: cover;
-            filter: brightness(0.4); /* Escurece o vídeo para o texto ficar bem visível */
+            opacity: 0.5; /* Escurecido para dar contraste */
+            filter: blur(2px);
         }
 
-        /* ===== RESPONSIVIDADE (Celulares e Tablets) ===== */
-        @media screen and (max-width: 768px) {
-            h1 {
-                font-size: 32px;
-                margin-bottom: 15px;
-            }
-            p {
-                font-size: 20px;
-                line-height: 1.3;
-            }
-            .slide-container {
-                width: 90%;
-                padding: 15px;
-            }
-            .botoes-container {
-                padding: 15px 10px;
-                gap: 10px;
-                flex-wrap: nowrap;
-                overflow-x: auto;
-                justify-content: flex-start;
-                -webkit-overflow-scrolling: touch;
-                scrollbar-width: none; 
-            }
-            .botoes-container::-webkit-scrollbar {
-                display: none;
-            }
-            button {
-                padding: 12px 18px;
-                font-size: 16px;
-                white-space: nowrap;
-                flex-shrink: 0;
-            }
+        .main-container {
+            width: 90%;
+            max-width: 1200px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            padding: 40px;
+            animation: fadeIn 1s ease-out;
+        }
+
+        /* Título Principal */
+        .title-box {
+            padding: 30px;
+        }
+        
+        .title-box h1 {
+            font-size: 64px;
+            font-weight: 800;
+            margin: 0 0 10px 0;
+            letter-spacing: -1px;
+            background: linear-gradient(135deg, #fff, #b4c6e4);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 4px 30px rgba(255,255,255,0.1);
+        }
+
+        .title-box p {
+            font-size: 22px;
+            color: var(--text-muted);
+            margin: 0;
+            font-weight: 300;
+        }
+
+        /* Grid de Jogos */
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            width: 100%;
+        }
+
+        .game-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 35px 20px;
+            position: relative;
+            overflow: hidden;
+            text-decoration: none;
+            color: white;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .game-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+        }
+
+        /* Efeito de iluminação nos cards */
+        .game-card::before {
+            content: '';
+            position: absolute;
+            top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 60%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            transform: scale(0.5);
+            pointer-events: none;
+        }
+
+        .game-card:hover::before {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .game-card .icon {
+            font-size: 50px;
+            margin-bottom: 15px;
+            transition: transform 0.3s;
+        }
+
+        .game-card:hover .icon {
+            transform: scale(1.2);
+        }
+
+        .game-card h3 {
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0 0 8px 0;
+            letter-spacing: 0.5px;
+        }
+
+        .game-card p {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin: 0;
+            line-height: 1.4;
+        }
+
+        /* Highlight especial para o último card */
+        .card-special {
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(74, 222, 128, 0.1));
+            border-color: rgba(74, 222, 128, 0.3);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 768px) {
+            .main-container { padding: 20px; width: 95%; }
+            .title-box h1 { font-size: 42px; }
+            .title-box p { font-size: 16px; }
+            .games-grid { grid-template-columns: 1fr 1fr; gap: 15px; }
+            .game-card { padding: 20px 10px; }
+        }
+        @media (max-width: 480px) {
+            .games-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 
 <body>
 
-    <!-- Background animado em Vídeo -->
     <video autoplay loop muted playsinline class="video-bg">
         <source src="https://static.vecteezy.com/system/resources/previews/068/240/957/mp4/people-walking-across-a-crosswalk-in-a-city-video.mp4" type="video/mp4">
     </video>
 
-    <div class="slide-container">
-        <h1 id="titulo" style="font-size:40px; margin-top:0;">Cidades Inteligentes Arcade</h1>
+    <div class="main-container">
         
-        <div id="game-area" style="width:100%; height:320px; position:relative; overflow:hidden; background:rgba(0,0,0,0.3); border-radius:10px; margin-top:10px; display:flex; flex-direction:column; justify-content:center; align-items:center;">
-            <p id="conteudo">Escolha um minigame no menu abaixo para começar a jogar!</p>
+        <div class="glass-panel title-box">
+            <h1>Smart City</h1>
+            <p>Selecione um módulo para experimentar tecnologias urbanas</p>
         </div>
-    </div>
 
-    <!-- Barra de navegação com os botões dos jogos -->
-    <div class="botoes-container">
-        <button onclick="window.location.href='transito.html'">🚦 Trânsito</button>
-        <button onclick="window.location.href='iluminacao.html'">💡 Iluminação</button>
-        <button onclick="window.location.href='sustentavel.html'">🏙️ Cidade Sustentável</button>
-        <button onclick="iniciarJogo(4)">💧 Água</button>
-        <button onclick="iniciarJogo(5)">🌱 Benefícios</button>
+        <div class="games-grid">
+            <a href="transito.html" class="glass-panel game-card">
+                <div class="icon">🚦</div>
+                <h3>Trânsito</h3>
+                <p>Travessia Perigosa</p>
+            </a>
+
+            <a href="iluminacao.html" class="glass-panel game-card">
+                <div class="icon">💡</div>
+                <h3>Iluminação</h3>
+                <p>Otimize a Energia</p>
+            </a>
+
+            <a href="sustentavel.html" class="glass-panel game-card">
+                <div class="icon">🏙️</div>
+                <h3>Sustentável</h3>
+                <p>Gestão de Resíduos</p>
+            </a>
+
+            <a href="agua.html" class="glass-panel game-card">
+                <div class="icon">💧</div>
+                <h3>Água</h3>
+                <p>Evite o Desperdício</p>
+            </a>
+
+            <!-- O botão Benefícios agora aponta para o novo Central Hub -->
+            <a href="beneficios.html" style="text-decoration:none;" class="glass-panel game-card card-special">
+                <div class="icon">✨</div>
+                <h3>O Coração da Cidade</h3>
+                <p>Acompanhe o Impacto Sustentável</p>
+            </a>
+        </div>
+
     </div>
 
     <!-- Script principal de Jogos -->

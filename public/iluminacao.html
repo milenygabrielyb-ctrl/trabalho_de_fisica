@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>💡 Siga a Luz - Cidade Inteligente</title>
+    <link rel="stylesheet" href="global.css">
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body {
@@ -96,6 +97,27 @@
         }
         .light-on { background: #facc15; color: #000; box-shadow: 0 0 30px #facc15; transform: scale(1.1); }
         .light-off { background: #111; color: #555; transform: scale(1); }
+
+        /* Controles Mobile */
+        #mobile-ctrl {
+            display: none; position: absolute; bottom: 40px; left: 50%; 
+            transform: translateX(-50%); z-index: 200; width: 80%; max-width: 400px;
+        }
+        .touch-btn {
+            width: 100%; padding: 25px; background: rgba(34, 197, 94, 0.8);
+            border: 4px solid white; border-radius: 20px; color: white;
+            font-size: 24px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            user-select: none; touch-action: none;
+        }
+        .touch-btn:active { background: #16a34a; transform: scale(0.95); }
+
+        @media screen and (max-width: 768px) {
+            #mobile-ctrl { display: block; }
+            #hud span { font-size: 14px; }
+            .mayor-content { flex-direction: column; text-align: center; }
+            .mayor-img { height: 300px; }
+            .speech-bubble { font-size: 18px; }
+        }
     </style>
 </head>
 <body>
@@ -144,6 +166,10 @@
     </div>
 
     <div id="countdown">3</div>
+
+    <div id="mobile-ctrl">
+        <button class="touch-btn" id="walk-btn">PRESSIONE PARA ANDAR</button>
+    </div>
 </div>
 
 <script>
@@ -177,8 +203,23 @@ window.addEventListener("keydown", e => {
     if(e.code === "Space") { walking = false; e.preventDefault(); }
 });
 window.addEventListener("keyup", e => {
-    // Se quiser que parar ao soltar a tecla, descomente abaixo:
-    // if(e.code === "ArrowRight" || e.code === "ArrowUp") walking = false;
+    if(e.code === "ArrowRight" || e.code === "ArrowUp") walking = false;
+});
+
+// Controle via Touch (Mobile)
+const walkBtn = document.getElementById("walk-btn");
+walkBtn.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    if(isOver || isPaused) return;
+    walking = true;
+});
+walkBtn.addEventListener("touchend", (e) => {
+    e.preventDefault();
+    walking = false;
+});
+walkBtn.addEventListener("touchcancel", (e) => {
+    e.preventDefault();
+    walking = false;
 });
 
 function fecharPrefeito() {
@@ -359,14 +400,19 @@ function endGame(win, msg) {
     if(win) {
         title.innerText = "🏆 VITÓRIA!";
         title.style.color = "#4ade80";
-        btn.innerText = "Continuar";
+        btn.innerText = "VER BENEFÍCIOS";
+        btn.onclick = () => location.href = "beneficios.html";
         m.innerHTML = `<div style="display:flex; align-items:center; gap:15px; background:rgba(255,255,255,0.05); padding:15px; border-radius:15px; text-align:left;">
             <img src="prefeito.png" style="height:100px; mix-blend-mode:screen;">
-            <div>“Excelente! Você dominou o tempo da luz e atravessou com segurança. É assim que uma cidade inteligente protege seus cidadãos.”</div>
-        </div><br>` + msg + `<br><br><strong>Próximo nível: ${currentGoal + 500}m!</strong>`;
-        currentGoal += 500; // Aumentar o desafio para a próxima rodada
-        document.getElementById("maxDist").innerText = currentGoal;
+            <div>“Excelente! Você dominou o tempo da luz. A eficiência de iluminação civil da cidade melhorou massivamente!”</div>
+        </div><br>` + msg;
+        
+        let hubData = { agua: 10, energia: 20, transito: 10, ecologia: 10 };
+        try { let stored = localStorage.getItem('smartCity_Stats'); if(stored) hubData = JSON.parse(stored); } catch(e) {}
+        hubData.energia = Math.min(100, hubData.energia + 30);
+        localStorage.setItem('smartCity_Stats', JSON.stringify(hubData));
     } else {
+        btn.onclick = reiniciar;
         title.innerText = "💥 OPS!";
         title.style.color = "#ef4444";
         btn.innerText = "Tentar Novamente";

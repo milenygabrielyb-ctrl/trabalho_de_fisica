@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guardiões da Água</title>
+    <link rel="stylesheet" href="global.css">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            height: 100vh; overflow: hidden; display: flex; flex-direction: column;
+            color: #FFF; background: #0F172A; font-family: 'Outfit', 'Inter', sans-serif;
+            transition: background 1s ease;
+        }
+
+        #hud {
+            padding: 15px 30px; display: flex; justify-content: space-between; align-items: center;
+            z-index: 50; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(10px);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            transition: all 0.5s ease;
+        }
+        
+        .hud-critical { border-bottom-color: #EF4444 !important; box-shadow: 0 4px 20px rgba(239,68,68, 0.4) !important;}
+        .hud-alert { border-bottom-color: #F59E0B !important; box-shadow: 0 4px 20px rgba(245,158,11, 0.4) !important;}
+        .hud-stable { border-bottom-color: #0EA5E9 !important; box-shadow: 0 4px 20px rgba(14,165,233, 0.4) !important;}
+        .hud-optimized { border-bottom-color: #22C55E !important; box-shadow: 0 4px 20px rgba(34,197,94, 0.4) !important;}
+
+        .status-badge {
+            padding: 8px 20px; border-radius: 20px; font-weight: bold; text-transform: uppercase;
+            letter-spacing: 1px; font-size: 14px; display:flex; align-items:center; gap:8px;
+        }
+
+        #game-world { flex: 1; position: relative; overflow: hidden; cursor: crosshair; }
+        
+        .grid-layer {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+            background-size: 80px 80px;
+            background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            z-index: 1; animation: slowPan 25s linear infinite; pointer-events: none;
+        }
+        @keyframes slowPan { 0% { transform: translateY(0); } 100% { transform: translateY(80px); } }
+
+        canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 5; }
+
+        /* Narrativa Overlay */
+        .story-overlay {
+            position: absolute; inset: 0; z-index: 200;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: rgba(10, 15, 25, 0.85); backdrop-filter: blur(15px);
+            opacity: 0; pointer-events: none; transition: opacity 0.4s;
+        }
+        .story-overlay.active { opacity: 1; pointer-events: auto; }
+
+        .story-content { display: flex; align-items: center; justify-content: center; gap: 40px; max-width: 900px;}
+        
+        .drone-avatar {
+            width: 200px; height: 250px;
+            filter: drop-shadow(0 15px 25px rgba(0,0,0,0.5));
+            animation: hoverAnim 4s ease-in-out infinite; transition: all 0.4s;
+        }
+        @keyframes hoverAnim { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+        .speech-bubble {
+            background: linear-gradient(135deg, #1e293b, #0f172a); border: 2px solid #334155;
+            color: #f8fafc; padding: 35px; border-radius: 20px; position: relative; 
+            font-size: 24px; line-height: 1.5; box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+            transition: all 0.4s;
+        }
+        .speech-bubble::after {
+            content: ''; position: absolute; left: -20px; top: 50%;
+            border: 20px solid transparent; border-right-color: #1e293b; margin-top: -20px;
+        }
+
+        .btn-story {
+            margin-top: 50px; background: linear-gradient(135deg, #0EA5E9, #2563EB);
+            color: white; border: none; padding: 15px 40px; font-size: 20px; font-weight: bold;
+            border-radius: 12px; cursor: pointer; box-shadow: 0 10px 20px rgba(14,165,233,0.4);
+            transition: transform 0.2s, box-shadow 0.2s; font-family: 'Outfit';
+        }
+        .btn-story:hover { transform: scale(1.05); box-shadow: 0 15px 30px rgba(14,165,233,0.6); }
+
+        #flash {
+            position: absolute; inset: 0; z-index: 100; pointer-events: none;
+            background: transparent; transition: background 0.3s;
+        }
+    </style>
+</head>
+<body>
+
+<div id="hud">
+    <div style="display:flex; gap: 20px; align-items:center;">
+        <div class="status-badge" id="city-status" style="background: rgba(14,165,233,0.2); color: #0EA5E9; border: 1px solid #0EA5E9;">
+            <span id="status-icon">🔵</span> <span id="status-text">ESTÁVEL</span>
+        </div>
+        <div id="mission-text" style="font-size: 18px; font-weight: 500; color: #E2E8F0;">
+            Aguardando inicialização...
+        </div>
+    </div>
+    
+    <div style="display:flex; align-items:center; gap: 30px;">
+        <div id="lives-wrapper" style="display:flex; gap: 8px;">
+            <!-- Lives injected by JS -->
+        </div>
+        <div>
+            <strong style="color:#94a3b8; padding-right:10px;">Progresso</strong>
+            <span id="score" style="font-size:24px; font-weight: bold; color:white;">0</span>
+            <span style="font-size:20px; color:#64748b;">/</span>
+            <span id="total" style="font-size:20px; color:#94a3b8;">0</span>
+        </div>
+    </div>
+    <div style="display:flex; gap:10px;">
+        <button id="btn-pause" class="btn-modern" onclick="togglePause()" style="padding: 10px 20px; font-size: 16px; display:none; background: rgba(245, 158, 11, 0.2); border-color: #F59E0B; color: #F59E0B;">Pausar</button>
+        <button class="btn-modern" onclick="location.reload()" style="padding: 10px 20px; font-size: 16px;">Reiniciar</button>
+        <a href="index.html" class="btn-modern" style="padding: 10px 20px; font-size: 16px; background: rgba(239, 68, 68, 0.2); border-color: #EF4444; color: #EF4444;">Sair</a>
+    </div>
+</div>
+
+<div id="game-world">
+    <div class="grid-layer"></div>
+    <div id="flash"></div>
+    <canvas id="cv"></canvas>
+    
+    <div id="pause-modal" class="overlay" style="display:none; background: rgba(0,0,0,0.85); z-index: 300;">
+        <h2 class="title-gradient" style="margin-bottom:10px;">SISTEMA PAUSADO</h2>
+        <div style="font-size: 20px; color: #94A3B8; margin-bottom: 40px;">As operações da malha de fluidos foram suspensas.</div>
+        <button class="btn-story" onclick="togglePause()">RETOMAR OPERAÇÃO</button>
+    </div>
+
+    <div id="story-modal" class="story-overlay active">
+        <div class="story-content">
+            <div id="drone-svg-container"></div>
+            <div class="speech-bubble" id="drone-msg">
+                "Olá. Bem-vindo ao sistema de Gestão."
+            </div>
+        </div>
+        <button class="btn-story" id="btn-next" onclick="nextAction()">INICIAR</button>
+    </div>
+</div>
+
+<script>
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+const gw = document.getElementById("game-world");
+
+let W, H;
+function resize() { W = cv.width = gw.offsetWidth; H = cv.height = gw.offsetHeight; }
+resize(); window.addEventListener("resize", resize);
+
+// Asset definitions (SVG Semi-Flat)
+const SVGs = {
+    leak_alert: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="#EF4444" opacity="0.2"/><path d="M50 15 C50 15 20 60 20 75 A30 30 0 1 0 80 75 C80 60 50 15 50 15 Z" fill="#EF4444"/><circle cx="45" cy="65" r="8" fill="#FFF" opacity="0.5"/></svg>',
+    sensor_fixed: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="30" fill="#0EA5E9"/><path d="M35 50 L45 60 L65 35" fill="none" stroke="#FFF" stroke-width="8" stroke-linecap="round"/></svg>',
+    house: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M10 50 L50 10 L90 50 L80 50 L80 90 L20 90 L20 50 Z" fill="#334155"/><rect x="40" y="60" width="20" height="30" fill="#0EA5E9"/></svg>',
+    pipe_straight: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="30" width="100" height="40" fill="#1E293B"/><rect x="0" y="40" width="100" height="20" fill="#0EA5E9"/></svg>',
+    pipe_corner: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M0 30 L60 30 A10 10 0 0 1 70 40 L70 100 L30 100 L30 60 A10 10 0 0 0 20 50 L0 50 Z" fill="#1E293B"/><path d="M0 45 L50 45 A5 5 0 0 1 55 50 L55 100 L45 100 L45 55 A5 5 0 0 0 40 55 L0 55 Z" fill="#0EA5E9"/></svg>',
+    radar_blob: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="#EF4444" opacity="0.4"/><path d="M 30 50 Q 50 20 70 50 T 40 80 Z" fill="#B91C1C"/></svg>',
+    sensor_probe: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="30" fill="rgba(14, 165, 233, 0.3)" /><rect x="45" y="20" width="10" height="60" fill="#E2E8F0" rx="3" /><circle cx="50" cy="20" r="8" fill="#22C55E" /><path d="M30 50 Q50 60 70 50" fill="none" stroke="#0EA5E9" stroke-width="4" stroke-linecap="round"/></svg>',
+    drone_normal: '<svg class="drone-avatar" viewBox="0 0 200 250" xmlns="http://www.w3.org/2000/svg"><circle cx="100" cy="110" r="80" fill="rgba(14, 165, 233, 0.15)" filter="blur(10px)"/><rect x="50" y="70" width="100" height="90" rx="30" fill="#E2E8F0" /><rect x="55" y="80" width="90" height="60" rx="20" fill="#0F172A" /><circle cx="80" cy="110" r="10" fill="#0EA5E9" /><circle cx="120" cy="110" r="10" fill="#0EA5E9" /><path d="M 85 125 Q 100 135 115 125" fill="none" stroke="#22C55E" stroke-width="4" stroke-linecap="round"/><line x1="70" y1="70" x2="60" y2="30" stroke="#E2E8F0" stroke-width="8" stroke-linecap="round"/><line x1="130" y1="70" x2="140" y2="30" stroke="#E2E8F0" stroke-width="8" stroke-linecap="round"/><path d="M 60 160 L 70 190 L 50 190 Z" fill="#94A3B8"/><path d="M 140 160 L 150 190 L 130 190 Z" fill="#94A3B8"/></svg>',
+    drone_alert: '<svg class="drone-avatar" viewBox="0 0 200 250" xmlns="http://www.w3.org/2000/svg"><circle cx="100" cy="110" r="80" fill="rgba(245, 158, 11, 0.15)" filter="blur(10px)"/><rect x="50" y="70" width="100" height="90" rx="30" fill="#E2E8F0" /><rect x="55" y="80" width="90" height="60" rx="20" fill="#0F172A" /><line x1="70" y1="110" x2="90" y2="105" stroke="#F59E0B" stroke-width="8" stroke-linecap="round"/><line x1="130" y1="110" x2="110" y2="105" stroke="#F59E0B" stroke-width="8" stroke-linecap="round"/><path d="M 85 130 L 115 130" stroke="#F59E0B" stroke-width="4" stroke-linecap="round"/><path d="M 60 160 L 70 190 L 50 190 Z" fill="#94A3B8"/><path d="M 140 160 L 150 190 L 130 190 Z" fill="#94A3B8"/></svg>',
+    drone_critical: '<svg class="drone-avatar" viewBox="0 0 200 250" xmlns="http://www.w3.org/2000/svg"><circle cx="100" cy="110" r="80" fill="rgba(239, 68, 68, 0.15)" filter="blur(10px)"/><rect x="50" y="70" width="100" height="90" rx="30" fill="#E2E8F0" /><rect x="55" y="80" width="90" height="60" rx="20" fill="#0F172A" /><circle cx="80" cy="110" r="10" fill="#EF4444" /><circle cx="120" cy="110" r="10" fill="#EF4444" /><path d="M 85 130 Q 100 120 115 130" fill="none" stroke="#EF4444" stroke-width="4" stroke-linecap="round"/><path d="M 60 160 L 70 190 L 50 190 Z" fill="#94A3B8"/><path d="M 140 160 L 150 190 L 130 190 Z" fill="#94A3B8"/></svg>',
+    drone_happy: '<svg class="drone-avatar" viewBox="0 0 200 250" xmlns="http://www.w3.org/2000/svg"><circle cx="100" cy="110" r="80" fill="rgba(34, 197, 94, 0.15)" filter="blur(10px)"/><rect x="50" y="70" width="100" height="90" rx="30" fill="#E2E8F0" /><rect x="55" y="80" width="90" height="60" rx="20" fill="#0F172A" /><path d="M 70 110 Q 80 100 90 110" fill="none" stroke="#22C55E" stroke-width="6" stroke-linecap="round"/><path d="M 110 110 Q 120 100 130 110" fill="none" stroke="#22C55E" stroke-width="6" stroke-linecap="round"/><path d="M 85 125 Q 100 145 115 125" fill="none" stroke="#22C55E" stroke-width="4" stroke-linecap="round"/><path d="M 60 160 L 70 190 L 50 190 Z" fill="#94A3B8"/><path d="M 140 160 L 150 190 L 130 190 Z" fill="#94A3B8"/></svg>'
+};
+
+const IMG_CACHE = {};
+for(let k in SVGs) {
+    if(k.startsWith("drone")) continue; // drones bound directly to HTML
+    IMG_CACHE[k] = new Image();
+    IMG_CACHE[k].src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(SVGs[k]);
+}
+
+// Game State Enum
+const STATE = { CRIT: 'critical', ALERT: 'alert', STABLE: 'stable', OPTIM: 'optimized' };
+let currentCityState = STATE.STABLE;
+
+// Global logic
+let isRunning = false;
+let chapter = 0; // 0 = Intro, 1..5
+let score = 0; let target = 0;
+let lives = 3;
+let isPaused = false;
+let gameObjs = [];
+
+function togglePause() {
+    if(chapter === 0) return; // Wait for intro
+    if(!isRunning && !isPaused) return; // Can't pause transitions
+    isPaused = !isPaused;
+    document.getElementById("pause-modal").style.display = isPaused ? "flex" : "none";
+    document.getElementById("btn-pause").innerText = isPaused ? "Retomar" : "Pausar";
+}
+
+function updateLivesHUD() {
+    const cont = document.getElementById("lives-wrapper");
+    if(!cont) return;
+    cont.innerHTML = "";
+    for(let i=0; i<3; i++) {
+        cont.innerHTML += `<svg viewBox="0 0 100 100" style="width:28px; height:28px; transition: 0.3s; ${i<lives ? 'transform: scale(1);' : 'transform: scale(0.8); opacity:0.2; filter:grayscale(100%);'}"><path d="M50 85 L15 50 A20 20 0 0 1 50 20 A20 20 0 0 1 85 50 Z" fill="#EF4444" stroke="#7F1D1D" stroke-width="4" stroke-linejoin="round"/></svg>`;
+    }
+}
+
+function loseLife() {
+    lives--;
+    updateLivesHUD();
+    flashScreen("rgba(239,68,68,0.7)");
+    if(lives <= 0) {
+        isRunning = false;
+        document.getElementById("story-modal").classList.remove("active");
+        showDrone("FALHA CRÍTICA! Você perdeu o controle dos limites aceitáveis e os recursos colapsaram.", "critical", "TENTAR NOVAMENTE", () => {
+            location.reload();
+        });
+    }
+}
+let particles = [];
+let nextCallback = null;
+let loopActive = true;
+let customLogic = null; // for varied minigames
+let radarAngle = 0;
+
+// Prepare background particles
+for(let i=0; i<40; i++) particles.push({ x: Math.random()*2000, y: Math.random()*2000, r: Math.random()*3+1, v: Math.random()*0.5 });
+
+// --- NARRATIVE ENGINE --- //
+function setCityState(st) {
+    currentCityState = st;
+    const sBadge = document.getElementById("city-status");
+    const hud = document.getElementById("hud");
+    document.body.style.background = st===STATE.CRIT ? "#450a0a" : st===STATE.ALERT ? "#451a03" : st===STATE.OPTIM ? "#022c22" : "#0F172A";
+    
+    hud.className = "modern-hud hud-" + st;
+    
+    let txt="ESTÁVEL", clr="#0EA5E9", ico="💙";
+    if(st === STATE.CRIT){ txt="CRÍTICO"; clr="#EF4444"; ico="🔴"; }
+    else if(st === STATE.ALERT){ txt="ALERTA"; clr="#F59E0B"; ico="🟡"; }
+    else if(st === STATE.OPTIM){ txt="OTIMIZADO"; clr="#22C55E"; ico="🟢"; }
+    
+    sBadge.style.color = clr; sBadge.style.borderColor = clr; sBadge.style.background = `rgba(${clr=== '#EF4444'?'239,68,68': clr==='#F59E0B'?'245,158,11':clr==='#22C55E'?'34,197,94':'14,165,233'}, 0.2)`;
+    document.getElementById("status-text").innerText = txt;
+}
+
+function flashScreen(color) {
+    const f = document.getElementById("flash");
+    f.style.background = color;
+    setTimeout(() => { f.style.background = "transparent"; }, 100);
+}
+
+function showDrone(text, mood, btn, callback) {
+    isRunning = false;
+    document.getElementById("story-modal").classList.add("active");
+    document.getElementById("drone-msg").innerText = text;
+    document.getElementById("btn-next").innerText = btn;
+    document.getElementById("drone-svg-container").innerHTML = SVGs["drone_" + mood];
+    nextCallback = callback;
+}
+function nextAction() {
+    document.getElementById("story-modal").classList.remove("active");
+    if(nextCallback) nextCallback();
+}
+
+function refreshHUD() {
+    document.getElementById("score").innerText = score;
+    document.getElementById("total").innerText = target;
+}
+
+// --- CHAPTER SYSTEM --- //
+// CHAPTER 0
+showDrone("Bem vindo, Guardião. Sou a IA de Gestão da Água.", "normal", "INICIAR", startChapter1Intro);
+
+function startChapter1Intro() {
+    document.getElementById("btn-pause").style.display = "inline-block";
+    lives = 3; updateLivesHUD();
+    setCityState(STATE.ALERT);
+    showDrone("Algo está errado... estamos perdendo água sem perceber. Sensores desligados.", "alert", "INVESTIGAR", () => {
+        chapter = 1; target = 5; score = 0; isRunning = true;
+        document.getElementById("mission-text").innerText = "Cap. 1: O Primeiro Vazamento (Elimine 5 vazios)";
+        refreshHUD();
+        spawnLeaks();
+    });
+}
+function spawnLeaks() {
+    customLogic = null; gameObjs = [];
+    for(let i=0; i<target; i++) {
+        gameObjs.push({ type: 'leak', x: 20 + Math.random()*60, y: 20 + Math.random()*60, state:'active', scale:0 });
+    }
+}
+
+function startChapter2Intro() {
+    setCityState(STATE.STABLE);
+    showDrone("Boa! Evitamos a perda na rede! Agora, o consumo nas casas está oscilando muito.\n\nCLIQUE NAS CASAS para reduzir a pressão da água, mas não deixe faltar (barra vazia)! Mantenha as barras dentro da ÁREA VERDE.", "alert", "ENTENDIDO", () => {
+        chapter = 2; target = 6; score = 0; isRunning = true; setCityState(STATE.ALERT);
+        document.getElementById("mission-text").innerText = "Cap. 2: Consumo (Clique nas casas para manter as barras na área verde)";
+        refreshHUD();
+        spawnHouses();
+    });
+}
+function spawnHouses() {
+    gameObjs = [];
+    for(let i=0; i<target; i++) {
+        gameObjs.push({ type: 'house', x: 15 + (i%3)*30, y: 20 + Math.floor(i/3)*30, usage: 40 + Math.random()*20 });
+    }
+    customLogic = () => {
+        let allGreen = true;
+        for(let obj of gameObjs) {
+            obj.usage += 0.10; // Medium-fast growth
+            if(obj.usage > 100) obj.usage = 100;
+            if(obj.usage > 80 || obj.usage < 20) allGreen = false;
+        }
+        if(allGreen && gameObjs.length > 0) {
+            score += 0.035; // Balance slightly longer
+            refreshHUD();
+            if(score >= target) {
+                gameObjs = []; customLogic = null;
+                setTimeout(startChapter3Intro, 500);
+            }
+        }
+    };
+}
+
+function startChapter3Intro() {
+    setCityState(STATE.OPTIM);
+    showDrone("Consumo estabilizado nas residências. Próximo passo: transformar desperdício em recurso conectando a rede de reuso.", "happy", "CONECTAR", () => {
+        chapter = 3; target = 5; score = 0; isRunning = true; setCityState(STATE.STABLE);
+        document.getElementById("mission-text").innerText = "Cap. 3: Reuso da Água (Gire os canos)";
+        refreshHUD();
+        spawnPipes();
+    });
+}
+function spawnPipes() {
+    gameObjs = []; customLogic = null; target = 9;
+    const GRID_POOLS = [
+        [ // Grid 1
+            {gx:0, gy:0, type:'pipe_corner', correct:[270]}, {gx:1, gy:0, type:'pipe_straight', correct:[0, 180]}, {gx:2, gy:0, type:'pipe_corner', correct:[0]},
+            {gx:0, gy:1, type:'pipe_corner', correct:[90]}, {gx:1, gy:1, type:'pipe_corner', correct:[270]}, {gx:2, gy:1, type:'pipe_straight', correct:[90, 270]},
+            {gx:0, gy:2, type:'pipe_straight', correct:[0, 180]}, {gx:1, gy:2, type:'pipe_corner', correct:[180]}, {gx:2, gy:2, type:'pipe_corner', correct:[180]}
+        ],
+        [ // Grid 2
+            {gx:0, gy:0, type:'pipe_corner', correct:[180]}, {gx:1, gy:0, type:'pipe_corner', correct:[270]}, {gx:2, gy:0, type:'pipe_corner', correct:[0]},
+            {gx:0, gy:1, type:'pipe_straight', correct:[0, 180]}, {gx:1, gy:1, type:'pipe_corner', correct:[90]}, {gx:2, gy:1, type:'pipe_straight', correct:[90, 270]},
+            {gx:0, gy:2, type:'pipe_corner', correct:[0]}, {gx:1, gy:2, type:'pipe_straight', correct:[0, 180]}, {gx:2, gy:2, type:'pipe_corner', correct:[180]}
+        ],
+        [ // Grid 3
+            {gx:0, gy:0, type:'pipe_corner', correct:[270]}, {gx:1, gy:0, type:'pipe_straight', correct:[0, 180]}, {gx:2, gy:0, type:'pipe_corner', correct:[0]},
+            {gx:0, gy:1, type:'pipe_corner', correct:[0]}, {gx:1, gy:1, type:'pipe_corner', correct:[90]}, {gx:2, gy:1, type:'pipe_straight', correct:[90, 270]},
+            {gx:0, gy:2, type:'pipe_corner', correct:[180]}, {gx:1, gy:2, type:'pipe_straight', correct:[0, 180]}, {gx:2, gy:2, type:'pipe_straight', correct:[0, 180]}
+        ],
+        [ // Grid 4
+            {gx:0, gy:0, type:'pipe_corner', correct:[270]}, {gx:1, gy:0, type:'pipe_straight', correct:[90, 270]}, {gx:2, gy:0, type:'pipe_corner', correct:[90]},
+            {gx:0, gy:1, type:'pipe_straight', correct:[0, 180]}, {gx:1, gy:1, type:'pipe_straight', correct:[0, 180]}, {gx:2, gy:1, type:'pipe_corner', correct:[0]},
+            {gx:0, gy:2, type:'pipe_straight', correct:[0, 180]}, {gx:1, gy:2, type:'pipe_corner', correct:[270]}, {gx:2, gy:2, type:'pipe_corner', correct:[180]}
+        ]
+    ];
+    let gridDef = GRID_POOLS[Math.floor(Math.random() * GRID_POOLS.length)];
+    
+    for(let def of gridDef) {
+        let initialRot = Math.floor(Math.random()*4)*90;
+        while(def.correct.includes(initialRot % 360)) { initialRot += 90; }
+        gameObjs.push({
+            type: def.type, gx: def.gx, gy: def.gy,
+            x: 0, y: 0, rot: initialRot, correct: def.correct
+        });
+    }
+}
+function checkPipes() {
+    let ok = 0;
+    for(let o of gameObjs) if(o.correct.includes(o.rot % 360)) ok++;
+    score = ok; refreshHUD();
+    if(score >= target) { 
+        flashScreen("rgba(34, 197, 94, 0.5)"); 
+        setTimeout(startChapter4Intro, 1200); 
+    }
+}
+
+function startChapter4Intro() {
+    setCityState(STATE.CRIT);
+    showDrone("ALERTA MÁXIMO! A qualidade da água despencou. O radar mostra áreas vermelhas criticamente contaminadas. Precisamos implantar nossos sensores hídricos lá rapidamente!", "critical", "USAR RADAR", () => {
+        chapter = 4; target = 8; score = 0; isRunning = true; radarAngle = 0;
+        document.getElementById("mission-text").innerText = "Cap. 4: Sensores de Qualidade (Posicione sensores nas áreas de contaminação)";
+        refreshHUD();
+        spawnBlobs();
+    });
+}
+function spawnBlobs() {
+    gameObjs = []; customLogic = null; radarAngle = 0;
+    spawnId = setInterval(() => {
+        if(!isRunning || isPaused || chapter !== 4) return;
+        if(gameObjs.filter(o=>o.state==='dirty').length < 3 && score + gameObjs.filter(o=>o.state==='clean').length < target) {
+            gameObjs.push({ type: 'blob', x: 20 + Math.random()*60, y: 15 + Math.random()*70, state:'dirty' });
+        }
+    }, 1500);
+    
+    customLogic = () => { 
+        radarAngle += 0.03; 
+        
+        let currentRadar = (radarAngle + 0.15) % (Math.PI * 2);
+        for(let obj of gameObjs) {
+            if(obj.type === 'blob' && obj.state === 'dirty') {
+                let px = (obj.x <= 100 ? (obj.x/100)*W : obj.x);
+                let py = (obj.y <= 100 ? (obj.y/100)*H : obj.y);
+                let targetAngle = Math.atan2(py - H/2, px - W/2);
+                
+                let diff = currentRadar - targetAngle;
+                while(diff < -Math.PI) diff += Math.PI*2;
+                while(diff > Math.PI) diff -= Math.PI*2;
+                
+                if(Math.abs(diff) < 0.2) {
+                    if(!obj.recentlySwept) {
+                        obj.recentlySwept = true;
+                        loseLife();
+                    }
+                } else {
+                    obj.recentlySwept = false;
+                }
+            }
+        }
+    };
+}
+
+function startChapter5Intro() {
+    setCityState(STATE.ALERT);
+    showDrone("SISTEMA SOB CARGA MÁXIMA! Múltiplas falhas simultâneas. Implemente a eficiência de Cingapura agora!", "alert", "SOBREVIVER", () => {
+        chapter = 5; target = 15; score = 0; isRunning = true; setCityState(STATE.CRIT);
+        document.getElementById("mission-text").innerText = "BOSS: Modelo Singapura (Sobreviva às anomalias)";
+        refreshHUD();
+        spawnBoss();
+    });
+}
+function spawnBoss() {
+    gameObjs = [];
+    setInterval(()=>{
+        if(!isRunning || isPaused || chapter !== 5) return;
+        if(gameObjs.length < 5) {
+            const r = Math.random();
+            if(r < 0.3) gameObjs.push({ type: 'leak', x: 20 + Math.random()*60, y: 20 + Math.random()*60, state:'active', scale:0 });
+            else if(r < 0.6) gameObjs.push({ type: 'house', x: 20 + Math.random()*60, y: 20 + Math.random()*60, usage: 40 + Math.random()*15 });
+            else gameObjs.push({ type: 'blob', x: W/2, y: H/2, vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6, state:'dirty', scale:0 });
+        }
+    }, 1000);
+    
+    customLogic = () => {
+        for(let o of gameObjs) {
+            if(o.type === 'blob') {
+                o.x += o.vx; o.y += o.vy;
+                if((o.x < 50 && o.vx <0) || (o.x > W-50 && o.vx > 0)) o.vx *= -1;
+                if((o.y < 50 && o.vy <0) || (o.y > H-50 && o.vy > 0)) o.vy *= -1;
+            }
+            else if(o.type === 'house') {
+                o.usage += 0.1; // Slower boss mechanics
+                if(o.usage > 100) { loseLife(); o.usage = 30; refreshHUD(); }
+            }
+        }
+    };
+}
+
+function bossWin() {
+    setCityState(STATE.OPTIM);
+    
+    // Gravar o sucesso absoluto da malha Hídrica para o Hub Benefícios
+    let hubData = { agua: 10, energia: 20, transito: 10, ecologia: 10 };
+    try {
+        let stored = localStorage.getItem('smartCity_Stats');
+        if(stored) hubData = JSON.parse(stored);
+    } catch(e) {}
+    hubData.agua = 100; // Água otimizada (Cingapura)
+    localStorage.setItem('smartCity_Stats', JSON.stringify(hubData));
+    
+    showDrone("Vitória Épica! Toda a malha hídrica da metrópole foi restaurada. Volte para a central de Benefícios e veja sua cidade verde florescer!", "happy", "VER BENEFÍCIOS", () => { location.href = 'beneficios.html'; });
+}
+
+// INTERACTIONS
+cv.addEventListener("mousedown", (e) => {
+    if(!isRunning || isPaused) return;
+    const rect = cv.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    for (let i = gameObjs.length - 1; i >= 0; i--) {
+        const obj = gameObjs[i];
+        let px = 0, py = 0;
+        if(obj.gx !== undefined && obj.gy !== undefined) {
+             px = W/2 + (obj.gx - 1) * 120;
+             py = H/2 + (obj.gy - 1) * 120;
+        } else {
+             px = (obj.x <= 100 ? (obj.x/100)*W : obj.x);
+             py = (obj.y <= 100 ? (obj.y/100)*H : obj.y);
+        }
+
+        if(Math.hypot(mx - px, my - py) < 60) {
+            if(chapter === 1 && obj.state === 'active') { // Fixed Leak
+                obj.state = 'fixed'; score++; refreshHUD(); flashScreen("rgba(14,165,233,0.3)");
+                setTimeout(()=> obj.dead = true, 500);
+                if(score >= target) setTimeout(startChapter2Intro, 500);
+            }
+            if(chapter === 2 && obj.type === 'house') {
+                obj.usage -= 20; if(obj.usage < 0) obj.usage = 0; // Fair click
+            }
+            if(chapter === 3 && (obj.type === 'pipe_straight' || obj.type === 'pipe_corner')) {
+                obj.rot += 90; checkPipes();
+            }
+            if(chapter === 4 && obj.state === 'dirty') {
+                obj.state = 'clean'; score++; refreshHUD(); flashScreen("rgba(34,197,94,0.3)");
+                setTimeout(()=> obj.dead = true, 500);
+                if(score >= target) setTimeout(startChapter5Intro, 500);
+            }
+            
+            // Boss mix
+            if(chapter === 5) {
+                if(obj.type === 'leak' && obj.state === 'active') { obj.state = 'fixed'; score++; setTimeout(()=> obj.dead = true, 500); }
+                else if(obj.type === 'house') { obj.usage -= 25; if(obj.usage < 0) obj.usage = 0; score += 0.5; }
+                else if(obj.type === 'blob' && obj.state === 'dirty') { obj.state = 'clean'; score++; setTimeout(()=> obj.dead = true, 500); }
+                
+                refreshHUD();
+                if(score >= target) bossWin();
+            }
+            break;
+        }
+    }
+});
+
+// Render Engine
+function render() {
+    if(!loopActive) return;
+    if(isPaused) { requestAnimationFrame(render); return; }
+    ctx.clearRect(0,0,W,H);
+    
+    // Background Particles
+    for(let p of particles) {
+        ctx.beginPath(); ctx.arc(p.x%W, p.y%H, p.r, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(14,165,233,${p.v})`; ctx.fill();
+        p.y -= p.v; if(p.y<0) p.y=H;
+    }
+
+    if(customLogic && isRunning) customLogic();
+    
+    if(chapter === 4) {
+        // Draw Sweeping Radar Layer
+        ctx.save();
+        ctx.translate(W/2, H/2);
+        ctx.beginPath();
+        ctx.moveTo(0,0);
+        ctx.arc(0, 0, Math.max(W,H), radarAngle, radarAngle + 0.3);
+        ctx.lineTo(0,0);
+        ctx.fillStyle = "rgba(14, 165, 233, 0.2)"; ctx.fill();
+        
+        ctx.beginPath();
+        for(let r=100; r<=2000; r+=150) { ctx.arc(0,0,r,0,Math.PI*2); }
+        ctx.strokeStyle="rgba(14, 165, 233, 0.1)"; ctx.lineWidth = 2; ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(0, -H*2); ctx.lineTo(0, H*2); ctx.moveTo(-W*2, 0); ctx.lineTo(W*2, 0);
+        ctx.stroke(); ctx.restore();
+    }
+    
+    if(chapter === 3 && gameObjs.length > 0) {
+        // Draw High-Tech Terminal Panel background for the Pipes Puzzle
+        ctx.save();
+        let s = 120; let rSize = s * 3 + 40; let pX = W/2 - rSize/2; let pY = H/2 - rSize/2;
+        
+        ctx.beginPath();
+        ctx.moveTo(pX - 120, H/2); ctx.lineTo(pX, H/2);
+        ctx.moveTo(pX + rSize, H/2 + s); ctx.lineTo(pX + rSize + 120, H/2 + s);
+        ctx.strokeStyle = "#1E293B"; ctx.lineWidth = s*0.4; ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(pX - 120, H/2); ctx.lineTo(pX, H/2);
+        ctx.moveTo(pX + rSize, H/2 + s); ctx.lineTo(pX + rSize + 120, H/2 + s);
+        ctx.strokeStyle = (score >= target ? "#22C55E" : "#0EA5E9"); ctx.lineWidth = s*0.2; ctx.stroke();
+        
+        ctx.shadowBlur = 30; ctx.shadowColor = "rgba(14, 165, 233, 0.4)";
+        ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+        ctx.strokeStyle = "#0EA5E9"; ctx.lineWidth = 4; ctx.lineJoin = "round";
+        ctx.beginPath(); 
+        if(ctx.roundRect) ctx.roundRect(pX, pY, rSize, rSize, 20); else ctx.rect(pX, pY, rSize, rSize);
+        ctx.fill(); ctx.stroke();
+        
+        ctx.shadowBlur = 0; ctx.fillStyle = "#E2E8F0"; ctx.font = "bold 18px 'Outfit'";
+        ctx.fillText("MÓDULO DE REUSO DE ÁGUA", pX + 20, pY - 20);
+        ctx.fillStyle = "#0EA5E9";
+        ctx.fillText("ENTRADA ->", pX - 120, H/2 - s*0.3);
+        ctx.fillText("-> SAÍDA", pX + rSize + 20, H/2 + s*0.7);
+        ctx.restore();
+    }
+
+    for (let i = gameObjs.length - 1; i >= 0; i--) {
+        const obj = gameObjs[i];
+        if(obj.dead) { gameObjs.splice(i,1); continue; }
+        
+        // Compute dynamic coordinates for grid or percentage based
+        let px = 0, py = 0;
+        if (obj.gx !== undefined && obj.gy !== undefined) {
+             px = W/2 + (obj.gx - 1) * 120;
+             py = H/2 + (obj.gy - 1) * 120;
+        } else {
+             px = (obj.x <= 100 ? (obj.x/100)*W : obj.x);
+             py = (obj.y <= 100 ? (obj.y/100)*H : obj.y);
+        }
+
+        ctx.save();
+        ctx.translate(px, py);
+        
+        if(obj.type === 'leak') {
+            obj.scale += ((obj.state==='fixed'?1:0) - obj.scale) * 0.2;
+            ctx.scale(1+obj.scale, 1+obj.scale);
+            if(obj.state === 'active') {
+                ctx.shadowBlur = 20; ctx.shadowColor = "#EF4444";
+                ctx.drawImage(IMG_CACHE.leak_alert, -40, -40, 80, 80);
+            } else {
+                ctx.shadowBlur = 10; ctx.shadowColor = "#0EA5E9";
+                ctx.drawImage(IMG_CACHE.sensor_fixed, -40, -40, 80, 80);
+            }
+        }
+        else if(obj.type === 'house') {
+            ctx.shadowBlur=10; ctx.shadowColor="#0EA5E9";
+            ctx.drawImage(IMG_CACHE.house, -40, -20, 80, 80);
+            // Draw Balance Bar
+            ctx.shadowBlur=0;
+            ctx.fillStyle="#1E293B"; ctx.fillRect(-40, -40, 80, 10);
+            
+            // Draw Safe Zone Background Pattern
+            ctx.fillStyle="rgba(34, 197, 94, 0.3)"; ctx.fillRect(-40 + 80*0.2, -40, 80*0.6, 10);
+            
+            let barC = "#22C55E";
+            if(obj.usage > 80 || obj.usage < 20) barC = "#EF4444";
+            else if(obj.usage > 70 || obj.usage < 30) barC = "#F59E0B";
+            
+            ctx.fillStyle=barC; ctx.fillRect(-40, -40, 80*(obj.usage/100), 10);
+            ctx.strokeRect(-40, -40, 80, 10); // Target zone marker
+            
+            ctx.fillStyle="#FFF"; ctx.fillRect(-40 + 80*0.2, -45, 2, 20); ctx.fillRect(-40 + 80*0.8, -45, 2, 20);
+        }
+        else if(obj.type === 'pipe_straight' || obj.type === 'pipe_corner') {
+            ctx.rotate(obj.rot * Math.PI/180);
+            let cor = (obj.correct.includes(obj.rot % 360)) ? "#22C55E" : "#0EA5E9";
+            ctx.shadowBlur=15; ctx.shadowColor=cor;
+            ctx.drawImage(IMG_CACHE[obj.type], -60, -60, 120, 120);
+        }
+        else if(obj.type === 'blob') {
+            if(obj.state === 'dirty') {
+                let pulse = Math.abs(Math.sin(Date.now() * 0.005)) * 10;
+                ctx.shadowBlur = 20; ctx.shadowColor = "#EF4444";
+                ctx.globalAlpha = 0.8;
+                ctx.drawImage(IMG_CACHE.radar_blob, -40 - pulse/2, -40 - pulse/2, 80 + pulse, 80 + pulse);
+            } else {
+                ctx.shadowBlur = 10; ctx.shadowColor = "#22C55E";
+                ctx.globalAlpha = 1;
+                ctx.drawImage(IMG_CACHE.sensor_probe, -40, -40, 80, 80);
+            }
+            ctx.globalAlpha = 1;
+        }
+
+        ctx.restore();
+    }
+
+    requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

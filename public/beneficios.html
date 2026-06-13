@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart City - Centro de Benefícios</title>
+    <link rel="stylesheet" href="global.css">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #0F172A; height: 100vh; font-family: 'Outfit', sans-serif; }
+        #city-canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        
+        .hub-ui { position: absolute; z-index: 10; padding: 30px; box-sizing: border-box; width: 100%; height: 100%; pointer-events: none; }
+        
+        .card-panel {
+            pointer-events: auto;
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(14, 165, 233, 0.2);
+            border-radius: 20px;
+            padding: 20px;
+            color: #E2E8F0;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .top-hud { display: flex; justify-content: space-between; align-items: flex-start; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 15px; }
+        .stat-item { background: rgba(0,0,0,0.4); padding: 15px; border-radius: 12px; text-align: center; }
+        .stat-title { font-size:12px; font-weight:700; letter-spacing: 1px; }
+        .stat-val { font-size: 28px; font-weight: bold; margin-top: 5px; color: #FFF;}
+        
+        .water-col { border-bottom: 3px solid #38BDF8; color: #38BDF8; }
+        .energy-col { border-bottom: 3px solid #FDE047; color: #FDE047; }
+        .traffic-col { border-bottom: 3px solid #EF4444; color: #EF4444; }
+        .eco-col { border-bottom: 3px solid #22C55E; color: #22C55E; }
+        
+        #npc-dialogue {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 80%; max-width: 800px;
+            display: flex; align-items: center; gap: 30px;
+            border-left: 5px solid #0EA5E9;
+        }
+        
+        .npc-avatar { width: 130px; height: 130px; flex-shrink: 0; }
+        .dialogue-box { flex-grow: 1; }
+        
+        .mission-overlay { position: absolute; right: 30px; top: 150px; width: 300px; }
+    </style>
+</head>
+<body>
+    <canvas id="city-canvas"></canvas>
+
+    <div class="hub-ui">
+        <!-- Dashboard Superior -->
+        <div class="top-hud">
+            <div class="card-panel" style="width: 350px;">
+                <h2 class="title-gradient" style="margin: 0; font-size: 22px;">Saúde da Metrópole</h2>
+                <div class="stats-grid">
+                    <div class="stat-item water-col">
+                        <div class="stat-title">ÁGUA</div>
+                        <div class="stat-val" id="val-agua">0%</div>
+                    </div>
+                    <div class="stat-item energy-col">
+                        <div class="stat-title">ENERGIA</div>
+                        <div class="stat-val" id="val-energia">0%</div>
+                    </div>
+                    <div class="stat-item traffic-col">
+                        <div class="stat-title">TRÂNSITO</div>
+                        <div class="stat-val" id="val-transito">0%</div>
+                    </div>
+                    <div class="stat-item eco-col">
+                        <div class="stat-title">RESÍDUOS</div>
+                        <div class="stat-val" id="val-ecologia">0%</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="pointer-events: auto;">
+                <a href="index.html" class="btn-modern" style="padding: 12px 25px; background: rgba(239, 68, 68, 0.2); border-color: #EF4444; color: #EF4444; font-size: 16px;">Sair do Terminal</a>
+            </div>
+        </div>
+        
+        <!-- Missões Ativas -->
+        <div class="card-panel mission-overlay" id="mission-ui" style="display:none;">
+            <h3 style="color:#F59E0B; margin:0 0 10px 0;">Alerta Global</h3>
+            <p id="mission-text" style="font-size:14px; color:#CBD5E1; margin:0; line-height:1.4;">Carregando objetivo municipal...</p>
+        </div>
+        
+        <!-- Caixa de Diálogo dos Guardiões -->
+        <div class="card-panel" id="npc-dialogue">
+            <div class="npc-avatar" id="npc-avatar-slot"></div>
+            <div class="dialogue-box">
+                <h3 id="npc-name" style="margin:0 0 8px 0; font-size:22px; color:#38BDF8;">N.O.V.A</h3>
+                <p id="npc-message" style="margin:0; font-size: 18px; line-height: 1.5; color:#F8FAFC;">Estabelecendo conexão neural com o grid da cidade. Bem-vindo, Gestor Central.</p>
+                <div style="margin-top: 15px; text-align: right;">
+                    <button class="btn-story" onclick="nextDialogue()" style="font-size: 14px; padding: 10px 20px;">ENTENDIDO</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        /* 1. LAYER DE DADOS E PERSISTÊNCIA */
+        let cityData = { agua: 0, energia: 0, transito: 0, ecologia: 0 };
+        
+        function loadData() {
+            let d = localStorage.getItem('smartCity_Stats');
+            if(d) {
+                try { cityData = JSON.parse(d); } catch(e) {}
+            } else {
+                // Initial Default States if never played
+                cityData = { agua: 10, energia: 15, transito: 5, ecologia: 10 };
+            }
+            
+            animateCounter('val-agua', cityData.agua);
+            animateCounter('val-energia', cityData.energia);
+            animateCounter('val-transito', cityData.transito);
+            animateCounter('val-ecologia', cityData.ecologia);
+            
+            checkRecompensas();
+        }
+        
+        let recompensas = [];
+        function checkRecompensas() {
+            if(cityData.agua >= 100) recompensas.push("💧 Reservatório Autossustentável");
+            if(cityData.energia >= 100) recompensas.push("⚡ Células Fotovoltaicas Orbitais");
+            if(cityData.transito >= 100) recompensas.push("🚦 Malha Viária Autônoma");
+            if(cityData.ecologia >= 100) recompensas.push("♻️ Cúpula de Purificação Padrão Zero");
+            
+            if(recompensas.length > 0) {
+               let h = document.getElementById("mission-ui");
+               h.style.display = "block";
+               h.innerHTML = `<h3 style="color:#22C55E; margin:0 0 10px 0;">Tecnologias Desbloqueadas</h3><ul style="padding-left:15px; margin:0; color:#E2E8F0; font-size:14px;">` + recompensas.map(r=>`<li style="margin-bottom:8px;">${r}</li>`).join('') + `</ul>`;
+            }
+        }
+        
+        function animateCounter(id, target) {
+            let el = document.getElementById(id);
+            let cur = 0;
+            if(target <= 0) return;
+            let iv = setInterval(() => {
+                cur++; if(cur >= target) { cur = target; clearInterval(iv); }
+                el.innerText = cur + '%';
+            }, 30);
+        }
+        
+        /* 2. PERSONAGENS (SVGs) */
+        const Personagens = {
+            NOVA: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="rgba(14,165,233,0.1)"/><circle cx="50" cy="50" r="25" fill="#F8FAFC"/><circle cx="50" cy="50" r="10" fill="#0EA5E9"/><path d="M50 10 A40 40 0 0 1 90 50 A40 40 0 0 1 50 90 A40 40 0 0 1 10 50 A40 40 0 0 1 50 10" fill="none" stroke="#38BDF8" stroke-width="2" stroke-dasharray="10 5"/><rect x="48" y="20" width="4" height="60" fill="rgba(56,189,248,0.5)"/><rect x="20" y="48" width="60" height="4" fill="rgba(56,189,248,0.5)"/></svg>',
+            LUMA: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="rgba(34,197,94,0.15)"/><path d="M30 80 Q50 60 70 80 Z" fill="#22C55E"/><circle cx="50" cy="40" r="20" fill="#F8FAFC"/><path d="M40 30 Q50 10 60 30" fill="none" stroke="#22C55E" stroke-width="4" stroke-linecap="round"/><circle cx="43" cy="40" r="4" fill="#0EA5E9"/><circle cx="57" cy="40" r="4" fill="#0EA5E9"/><path d="M45 48 Q50 52 55 48" fill="none" stroke="#22C55E" stroke-width="3" stroke-linecap="round"/></svg>',
+            VOLT: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="rgba(250,204,21,0.15)"/><path d="M30 80 Q50 60 70 80 Z" fill="#FACC15"/><circle cx="50" cy="40" r="20" fill="#0F172A"/><rect x="35" y="35" width="12" height="6" fill="#0EA5E9"/><rect x="53" y="35" width="12" height="6" fill="#0EA5E9"/><line x1="30" y1="38" x2="70" y2="38" stroke="#0EA5E9" stroke-width="2"/><path d="M47 48 L53 48 L50 55 Z" fill="#FACC15"/></svg>',
+            MARINA: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="rgba(56,189,248,0.15)"/><path d="M30 80 Q50 60 70 80 Z" fill="#0EA5E9"/><circle cx="50" cy="40" r="20" fill="#E2E8F0"/><path d="M35 15 Q50 35 65 15 Z" fill="#38BDF8"/><circle cx="43" cy="45" r="4" fill="#0369A1"/><circle cx="57" cy="45" r="4" fill="#0369A1"/><path d="M45 52 Q50 55 55 52" fill="none" stroke="#0EA5E9" stroke-width="2" stroke-linecap="round"/></svg>',
+            AXEL: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="rgba(239,68,68,0.15)"/><path d="M30 80 Q50 60 70 80 Z" fill="#EF4444"/><circle cx="50" cy="40" r="20" fill="#E2E8F0"/><path d="M30 35 L70 35 L68 45 L32 45 Z" fill="#0F172A"/><path d="M40 38 L45 38 L45 42 L40 42 Z" fill="#EF4444"/><path d="M55 38 L60 38 L60 42 L55 42 Z" fill="#EF4444"/><path d="M40 50 Q50 55 60 50" fill="none" stroke="#0F172A" stroke-width="3" stroke-linecap="round"/></svg>'
+        };
+
+        const dialogos = [
+            { npc: 'NOVA', text: "Conexão neural estabelecida. Bem-vindo de volta, Gestor. Analisando a bio-assinatura da metrópole..." },
+            { npc: 'LUMA', text: "Coração batendo mais verde do que nunca! Quanto mais você reciclar, mais nossa cidade vai respirar." },
+            { npc: 'VOLT', text: "E a malha elétrica tá a mil por hora! Nossos blocos centrais começam a brilhar com eficiência LED!" },
+            { npc: 'MARINA', text: "Você não esqueceu da água né? Aqueles painéis de distribuição precisam de manutenção constante, cada gota conta!" },
+            { npc: 'AXEL', text: "Sem falar nos cruzamentos ali do Setor 4. Volta na Arcade e acelere a nossa mobilidade, combinado?" },
+            { npc: 'NOVA', text: "Relatório de campo entregue. Seus módulos de Hub estão oficialmente sincronizados. Transforme a Smart City." }
+        ];
+
+        let currDialogo = 0;
+        function showDialogue() {
+            if(currDialogo >= dialogos.length) {
+                document.getElementById("npc-dialogue").style.display = "none";
+                return;
+            }
+            let d = dialogos[currDialogo];
+            document.getElementById("npc-avatar-slot").innerHTML = Personagens[d.npc];
+            document.getElementById("npc-name").innerText = d.npc;
+            document.getElementById("npc-message").innerText = d.text;
+            
+            const colors = { NOVA:"#38BDF8", LUMA:"#22C55E", VOLT:"#FACC15", MARINA:"#0EA5E9", AXEL:"#EF4444" };
+            document.getElementById("npc-name").style.color = colors[d.npc];
+            document.getElementById("npc-dialogue").style.borderLeftColor = colors[d.npc];
+        }
+
+        function nextDialogue() {
+            currDialogo++;
+            showDialogue();
+        }
+        
+        /* 3. ENGINE GRÁFICA DO CITY SKYLINE */
+        const cv = document.getElementById("city-canvas");
+        const ctx = cv.getContext("2d");
+        let W, H;
+        
+        let buildings = [];
+        let trees = [];
+        let traffic = [];
+        
+        function initCity() {
+            buildings = []; trees = []; traffic = [];
+            let wT = window.innerWidth;
+            let hT = window.innerHeight;
+            for(let i=0; i<90; i++) {
+                let h = 100 + Math.random() * (hT * 0.6) + (Math.random()>0.8? 200:0);
+                let w = 40 + Math.random() * 80;
+                let wins = [];
+                for(let wy=15; wy<h-25; wy+=25) {
+                    for(let wx=10; wx<w-15; wx+=20) {
+                        wins.push({x: wx, y: wy, on: Math.random()>0.3});
+                    }
+                }
+                buildings.push({
+                    x: -100 + Math.random() * (wT + 200),
+                    y: hT, 
+                    w: w, h: h,
+                    z: Math.random(),
+                    windows: wins
+                });
+            }
+            buildings.sort((a,b) => a.z - b.z);
+            
+            for(let i=0; i<60; i++) {
+                trees.push({
+                    x: Math.random() * wT,
+                    h: 20 + Math.random() * 45,
+                    swayOffset: Math.random() * Math.PI*2
+                });
+            }
+            
+            for(let i=0; i<25; i++) {
+                traffic.push({
+                    x: Math.random() * wT,
+                    y: hT - 80 - Math.random() * (hT * 0.6),
+                    speed: (Math.random() > 0.5 ? 1 : -1) * (1 + Math.random() * 4),
+                    type: Math.random() > 0.5 ? 'drone' : 'car'
+                });
+            }
+        }
+
+        function resize() { 
+            W = cv.width = window.innerWidth; 
+            H = cv.height = window.innerHeight; 
+            if(buildings.length === 0) initCity();
+            else {
+               // Update base Y
+               for(let b of buildings) b.y = H;
+            }
+        }
+        window.addEventListener('resize', resize); resize();
+        
+        let globalHealth = 0; // 0 to 100
+        let timeOffset = 0;
+        
+        function renderScene() {
+            requestAnimationFrame(renderScene);
+            timeOffset++;
+            
+            // For testing the interpolation, uncomment below to smoothly sway health:
+            // globalHealth = 50 + Math.sin(timeOffset*0.01)*50;
+            // Native:
+            globalHealth = (cityData.agua + cityData.energia + cityData.transito + cityData.ecologia) / 4;
+            let ratio = Math.max(0, Math.min(1, globalHealth / 100)); // Clamp 0-1
+            
+            // Fundo escuro (Cinza poluído -> Ciano Smart)
+            let r = Math.floor(15 + (2 - 15) * ratio);
+            let g = Math.floor(23 + (132 - 23) * ratio);
+            let b = Math.floor(42 + (199 - 42) * ratio);
+            
+            let bgGrad = ctx.createLinearGradient(0,0,0,H);
+            bgGrad.addColorStop(0, `rgb(${r}, ${g}, ${b})`);
+            bgGrad.addColorStop(1, `#0F172A`);
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0,0,W,H);
+            
+            // O Sol da Smart City
+            ctx.beginPath();
+            ctx.arc(W/2, H - (H*0.7 * ratio), 200, 0, Math.PI*2);
+            let sunR = Math.floor(100 + 155 * ratio);
+            let sunG = Math.floor(116 + 130 * ratio); // Yellow to bright cyan integration
+            ctx.fillStyle = `rgba(${sunR}, ${sunG}, 200, ${0.05 + 0.1 * ratio})`;
+            ctx.fill();
+
+            // Desenho dos Prédios
+            for(let bld of buildings) {
+                // Building base color
+                let b_r = 20 + 15 * bld.z; 
+                let b_g = 30 + 15 * bld.z;
+                let b_b = 40 + 20 * bld.z;
+                
+                // Colorize to smart city palette when healthy
+                if(ratio > 0.5) {
+                    b_g += 40 * (ratio - 0.5) * 2;
+                    b_b += 60 * (ratio - 0.5) * 2;
+                }
+                ctx.fillStyle = `rgb(${b_r}, ${b_g}, ${b_b})`;
+                ctx.fillRect(bld.x, bld.y - bld.h, bld.w, bld.h);
+                
+                // Painéis Solares Tecnológicos nos Telhados
+                if(ratio > 0.8 && bld.w > 50) {
+                    ctx.fillStyle = `rgba(14, 165, 233, ${(ratio-0.8)*4})`;
+                    ctx.beginPath(); 
+                    ctx.moveTo(bld.x + 10, bld.y - bld.h - 8); 
+                    ctx.lineTo(bld.x + bld.w - 10, bld.y - bld.h - 20); 
+                    ctx.lineTo(bld.x + bld.w - 5, bld.y - bld.h - 8); 
+                    ctx.fill();
+                }
+                
+                // Eco-Roofs
+                if(ratio > 0.5) {
+                    ctx.fillStyle = `rgba(34, 197, 94, ${(ratio-0.5)*2})`; // Fade in Green
+                    ctx.fillRect(bld.x, bld.y - bld.h - 5, bld.w, 5);
+                }
+                
+                // Windows
+                for(let w of bld.windows) {
+                    if(!w.on) continue;
+                    let pAlpha = 0.1 + ((Math.sin(timeOffset*0.02 + w.x*10) + 1)/2) * 0.4;
+                    if(ratio > 0.4) {
+                        ctx.fillStyle = `rgba(14, 165, 233, ${pAlpha * ratio})`;
+                        ctx.globalAlpha = pAlpha;
+                    } else {
+                        // Estado Caótico: Janelas laranjas comuns e Sirenes Vermelhas
+                        let isSiren = (w.x + w.y) % 7 === 0;
+                        if(isSiren) {
+                           let flash = Math.sin(timeOffset*0.1 + bld.x + w.y) > 0 ? 0.9 : 0.1;
+                           ctx.fillStyle = `rgba(239, 68, 68, ${flash})`;
+                           ctx.globalAlpha = flash;
+                        } else {
+                           ctx.fillStyle = `rgba(245, 158, 11, ${pAlpha})`;
+                           ctx.globalAlpha = pAlpha;
+                        }
+                    }
+                    ctx.fillRect(bld.x + w.x, bld.y - bld.h + w.y, 8, 15);
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+            
+            // Tempestade e Chuva Ácida se a cidade estiver ruim
+            if(ratio < 0.4) {
+                let rainIntensity = 1 - (ratio / 0.4); // 0 to 1
+                ctx.fillStyle = `rgba(148, 163, 184, ${0.4 * rainIntensity})`;
+                for(let i=0; i<150 * rainIntensity; i++) {
+                    let rx = (Math.random() * W * 2 + timeOffset * 3) % W;
+                    let ry = (Math.random() * H * 1.5 + timeOffset * 25) % H;
+                    ctx.fillRect(rx, ry, 2, 12 + Math.random()*10);
+                }
+            }
+            
+            // Fumaça de Fundo (Poluição)
+            if(ratio < 0.6) {
+                let smogA = 0.5 * (1 - ratio/0.6);
+                ctx.fillStyle = `rgba(71, 85, 105, ${smogA})`;
+                ctx.beginPath(); ctx.arc(W/4 + Math.sin(timeOffset*0.005)*50, H - 200, 300, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(W*0.75 + Math.cos(timeOffset*0.004)*70, H - 350, 450, 0, Math.PI*2); ctx.fill();
+            }
+            
+            // Trânsito e Drones
+            for(let t of traffic) {
+                t.x += t.speed;
+                if(t.x > W + 50) t.x = -50;
+                if(t.x < -50) t.x = W + 50;
+                
+                if(ratio <= 0.5 && t.type === 'car') {
+                    // Trânsito ruim (carros baixos)
+                    let pSpeed = Math.abs(t.speed);
+                    ctx.fillStyle = (t.speed > 0) ? `rgba(239, 68, 68, ${1 - ratio*2})` : `rgba(250, 204, 21, ${1 - ratio*2})`;
+                    ctx.shadowBlur = 15; ctx.shadowColor = ctx.fillStyle;
+                    ctx.fillRect(t.x, H - 50 - pSpeed*20, 20, 6);
+                    ctx.shadowBlur = 0;
+                } else if(ratio > 0.5 && t.type === 'drone') {
+                    // Drones Cybernéticos no alto
+                    let dy = t.y + Math.sin(timeOffset*0.05 + t.x)*10;
+                    ctx.fillStyle = "rgba(34, 197, 94, 0.9)";
+                    ctx.shadowBlur = 10; ctx.shadowColor = "#22C55E";
+                    ctx.beginPath(); ctx.arc(t.x, dy, 5, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = "rgba(14, 165, 233, 0.9)";
+                    ctx.fillRect(t.x - 10, dy - 3, 20, 3);
+                    ctx.shadowBlur = 0;
+                }
+            }
+
+            // O Rio Cristalino (Margem inferior)
+            let baseRio = H - 40;
+            let rivR = Math.floor(40 + (14 - 40) * ratio); // Rio escuro -> Ciano brilhante
+            let rivG = Math.floor(40 + (165 - 40) * ratio);
+            let rivB = Math.floor(30 + (233 - 30) * ratio);
+            
+            ctx.fillStyle = `rgba(${rivR}, ${rivG}, ${rivB}, 0.9)`;
+            ctx.fillRect(0, baseRio, W, 40);
+            
+            // Reflexos / Caustics na água
+            ctx.fillStyle = "rgba(255,255,255,0.25)";
+            for(let i=0; i<W; i+=30) {
+                let wave = Math.sin(timeOffset*0.04 + i)*10;
+                if(wave > 4) { ctx.fillRect(i, baseRio + 15 + wave, 20, 3); }
+            }
+
+            // Árvores brotando na margem do rio
+            for(let tr of trees) {
+                let treeGrow = Math.max(0, ratio - 0.2); // Surgem no Early-Mid Game
+                let th = tr.h * Math.min(1, treeGrow * 1.5);
+                if(th > 2) {
+                    let sway = Math.sin(timeOffset*0.02 + tr.swayOffset)*6;
+                    // Tronco
+                    ctx.fillStyle = "#022C22"; ctx.fillRect(tr.x - 2, baseRio - th, 5, th);
+                    // Copas vivas
+                    ctx.fillStyle = `rgba(34, 197, 94, ${0.4 + 0.6*ratio})`; 
+                    ctx.beginPath(); ctx.arc(tr.x + sway, baseRio - th, th*0.8, 0, Math.PI*2); ctx.fill();
+                }
+            }
+            
+            // Caos/Acidentes de poluição Foreground layer
+            if(ratio < 0.4) {
+               ctx.fillStyle = "rgba(100, 116, 139, 0.2)";
+               for(let i=0; i<4; i++) {
+                   ctx.fillRect((timeOffset*((i*1.5)+1))%W, H - 150 - i*50, 300, 15);
+               }
+            }
+        }
+        
+        // Inicialização
+        loadData();
+        showDialogue();
+        renderScene();
+    </script>
+</body>
+</html>
