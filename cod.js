@@ -45,7 +45,7 @@ app.get("/api/slides", (req, res) => {
 });
 
 // Força achar a página inicial
-app.get("*", (req, res) => {
+app.use((req, res) => {
     res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
