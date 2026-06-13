@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💡 Siga a Luz - Cidade Inteligente</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            height: 100vh; overflow: hidden;
+            display: flex; flex-direction: column;
+            font-family: 'Segoe UI', sans-serif;
+            color: white; background: #050510;
+        }
+        #hud {
+            padding: 10px 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(0,0,0,0.85);
+            font-size: 18px; z-index: 50;
+            border-bottom: 1px solid #222;
+        }
+        #hud a {
+            color:#888; text-decoration:none; font-size:14px;
+            border:1px solid #444; padding:3px 12px; border-radius:6px;
+        }
+        #hud a:hover { color:#fff; border-color:#888; }
+        
+        .ctrl-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid #444;
+            color: #ccc;
+            padding: 5px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 0 5px;
+            transition: all 0.2s;
+        }
+        .ctrl-btn.active {
+            background: #22c55e;
+            color: white;
+            border-color: #4ade80;
+        }
+
+        #game-world {
+            flex:1; position:relative; overflow:hidden; cursor: crosshair;
+        }
+        canvas { position:absolute; inset:0; width:100%; height:100%; }
+
+        /* Overlays */
+        .overlay {
+            position:absolute; inset:0; z-index:100;
+            display:flex; flex-direction:column; justify-content:center; align-items:center;
+            text-align:center; padding:20px;
+        }
+        #mayor-overlay { background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
+        #start-screen { background: rgba(5,5,15,0.9); }
+        #game-over { display:none; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); }
+
+        .mayor-content { display:flex; align-items:center; max-width:900px; gap:40px; }
+        .mayor-img { height:450px; mix-blend-mode:screen; filter:contrast(110%) brightness(110%); }
+        .speech-bubble {
+            background:white; color:#111; padding:30px; border-radius:25px;
+            position:relative; font-size:22px; line-height:1.5;
+        }
+        .speech-bubble::after {
+            content:''; position:absolute; right:-20px; top:50%;
+            border:20px solid transparent; border-left-color:white; margin-top:-20px;
+        }
+
+        .btn {
+            padding:15px 40px; font-size:20px; font-weight:bold; border:none; border-radius:12px;
+            background:#22c55e; color:white; cursor:pointer; margin-top:20px;
+        }
+        .btn:hover { background:#16a34a; transform:scale(1.05); }
+
+        #countdown {
+            display: none;
+            position: absolute;
+            inset: 0;
+            z-index: 110;
+            justify-content: center;
+            align-items: center;
+            font-size: 150px;
+            font-weight: bold;
+            color: #4ade80;
+            pointer-events: none;
+        }
+
+        /* Status de Luz */
+        #light-indicator {
+            position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
+            padding: 10px 30px; border-radius: 30px; font-weight: bold; font-size: 24px;
+            text-transform: uppercase; letter-spacing: 2px; z-index: 60;
+            transition: all 0.2s;
+        }
+        .light-on { background: #facc15; color: #000; box-shadow: 0 0 30px #facc15; transform: scale(1.1); }
+        .light-off { background: #111; color: #555; transform: scale(1); }
+    </style>
+</head>
+<body>
+
+<div id="hud">
+    <span>🏃 Distância: <strong id="dist">0</strong> / <span id="maxDist">500</span>m | 🏆 Recorde: <strong id="record">0</strong>m</span>
+    <div>
+        <button id="btn-iniciar" class="ctrl-btn" onclick="retomarJogo()">▶️ Iniciar</button>
+        <button id="btn-pausar" class="ctrl-btn" onclick="pausarJogo()">⏸️ Pausar</button>
+    </div>
+    <a href="index.html">← Voltar</a>
+</div>
+
+<div id="game-world">
+    <canvas id="cv"></canvas>
+    <div id="light-indicator" class="light-off">Aguardando...</div>
+
+    <!-- NPC Prefeito -->
+    <div id="mayor-overlay" class="overlay">
+        <div class="mayor-content">
+            <div class="speech-bubble">
+                "Atenção! O sistema de iluminação da cidade está instável. Em cidades inteligentes, a luz guia e protege… mas agora, você vai precisar confiar no seu timing. Atravesse com cuidado!”
+            </div>
+            <img src="prefeito.png" class="mayor-img" alt="Prefeito">
+        </div>
+        <button class="btn" onclick="fecharPrefeito()">Entendido, Sr. Prefeito!</button>
+    </div>
+
+    <!-- Tela de Início -->
+    <div id="start-screen" class="overlay" style="display:none;">
+        <h1 style="font-size:50px; color:#facc15; margin-bottom:10px;">💡 Siga a Luz</h1>
+        <p style="color:#aaa; font-size:18px; margin-bottom:30px;">Ande no claro, pare no escuro.<br>
+           <span style="color:#4ade80; font-size:14px;">Controles: ➔ Seta Direita (Andar) | ␣ Espaço (Parar)</span>
+        </p>
+        <button class="btn" onclick="comecarContagem()">COMEÇAR DESAFIO</button>
+    </div>
+
+    <!-- Game Over / Vitória -->
+    <div id="game-over" class="overlay">
+        <div id="go-content" style="max-width:600px;">
+            <h2 id="go-title" style="font-size:40px; margin-bottom:20px;"></h2>
+            <p id="go-msg" style="font-size:18px; color:#ccc; margin-bottom:30px;"></p>
+            <button id="go-btn" class="btn" onclick="reiniciar()">Continuar</button>
+            <p style="margin-top:20px;"><a href="index.html" style="color:#888;">Voltar ao menu</a></p>
+        </div>
+    </div>
+
+    <div id="countdown">3</div>
+</div>
+
+<script>
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+const gw = document.getElementById("game-world");
+const indicator = document.getElementById("light-indicator");
+
+let W, H;
+function resize() { W = cv.width = gw.offsetWidth; H = cv.height = gw.offsetHeight; }
+resize();
+window.addEventListener("resize", resize);
+
+// Estado
+let dist = 0, isOver = false, isPaused = false, playerX = 0, targetX = 0;
+let isLightOn = false, nextPhaseTime = 0;
+let loopId, spawnId;
+let currentGoal = 500;
+let record = localStorage.getItem("ilumina_record") || 0;
+document.getElementById("record").innerText = record;
+document.getElementById("maxDist").innerText = currentGoal;
+
+// Constantes
+const PLAYER_SPEED = 2.5;
+
+// Controle via Teclado
+let walking = false;
+window.addEventListener("keydown", e => {
+    if(isOver || isPaused) return;
+    if(e.code === "ArrowRight" || e.code === "ArrowUp") walking = true;
+    if(e.code === "Space") { walking = false; e.preventDefault(); }
+});
+window.addEventListener("keyup", e => {
+    // Se quiser que parar ao soltar a tecla, descomente abaixo:
+    // if(e.code === "ArrowRight" || e.code === "ArrowUp") walking = false;
+});
+
+function fecharPrefeito() {
+    document.getElementById("mayor-overlay").style.display = "none";
+    document.getElementById("start-screen").style.display = "flex";
+    render();
+}
+
+function comecarContagem() {
+    document.getElementById("start-screen").style.display = "none";
+    document.getElementById("game-over").style.display = "none";
+    const cd = document.getElementById("countdown");
+    cd.style.display = "flex";
+    let c = 3;
+    cd.innerText = c;
+    const t = setInterval(() => {
+        c--;
+        if(c > 0) cd.innerText = c;
+        else if(c === 0) cd.innerText = "GO!";
+        else { clearInterval(t); cd.style.display = "none"; iniciar(); }
+    }, 1000);
+}
+
+function iniciar() {
+    isOver = false; isPaused = false;
+    document.getElementById("btn-iniciar").classList.add("active");
+    document.getElementById("btn-pausar").classList.remove("active");
+    dist = 0; playerX = 50; targetX = 50;
+    nextPhaseTime = Date.now() + 2000;
+    isLightOn = true;
+    loopId = setInterval(tick, 1000/60);
+}
+
+function pausarJogo() {
+    if(isOver || isPaused) return;
+    isPaused = true;
+    clearInterval(loopId);
+    document.getElementById("btn-pausar").classList.add("active");
+    document.getElementById("btn-iniciar").classList.remove("active");
+}
+
+function retomarJogo() {
+    if(isOver || !isPaused) return;
+    isPaused = false;
+    document.getElementById("btn-iniciar").classList.add("active");
+    document.getElementById("btn-pausar").classList.remove("active");
+    loopId = setInterval(tick, 1000/60);
+}
+
+function tick() {
+    if(isOver || isPaused) return;
+
+    // Lógica da Luz
+    if(Date.now() > nextPhaseTime) {
+        isLightOn = !isLightOn;
+        // Tempos aleatórios (Fica tenso e rápido)
+        const duration = isLightOn ? (2500 + Math.random() * 4000) : (1500 + Math.random() * 3000);
+        nextPhaseTime = Date.now() + duration;
+    }
+
+    // Lógica do Indicador
+    if(isLightOn) {
+        indicator.innerText = "PODE ANDAR! 💡";
+        indicator.className = "light-on";
+    } else {
+        indicator.innerText = "PARE AGORA! 🌑";
+        indicator.className = "light-off";
+    }
+
+    // Movimentação via Teclado
+    if(walking) {
+        if(!isLightOn) {
+            endGame(false, "Os sensores detectaram movimento no escuro!");
+            return;
+        }
+        playerX += PLAYER_SPEED;
+    }
+
+    // Progresso baseado no playerX (mapeia a tela para o objetivo atual)
+    dist = Math.floor((playerX / W) * currentGoal);
+    if(dist < 0) dist = 0;
+    document.getElementById("dist").innerText = dist;
+
+    if(dist >= currentGoal) {
+        endGame(true, "Você atravessou a rua economizando energia com inteligência!");
+    }
+
+    render();
+}
+
+function render() {
+    ctx.clearRect(0,0,W,H);
+    
+    // Fundo (Céu muito mais dramático)
+    ctx.fillStyle = isLightOn ? "#1a1a4a" : "#000000";
+    ctx.fillRect(0,0,W,H);
+
+    // Chão (mais claro no claro)
+    ctx.fillStyle = isLightOn ? "#333" : "#050505";
+    ctx.fillRect(0, H-40, W, 40);
+
+    // Postes de luz (efeito de brilho expandido)
+    const spacing = 200;
+    for(let i=0; i<W+spacing; i+=spacing) {
+        const px = i - (playerX % spacing);
+        // Base
+        ctx.fillStyle = isLightOn ? "#555" : "#111";
+        ctx.fillRect(px, H-120, 8, 80);
+        // Lâmpada
+        if(isLightOn) {
+            const grad = ctx.createRadialGradient(px+4, H-120, 0, px+4, H-120, 180);
+            grad.addColorStop(0, "rgba(250, 204, 21, 0.8)");
+            grad.addColorStop(0.5, "rgba(250, 204, 21, 0.2)");
+            grad.addColorStop(1, "rgba(250, 204, 21, 0)");
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(px+4, H-120, 180, 0, Math.PI*2); ctx.fill();
+            
+            ctx.fillStyle = "#fff"; // Núcleo da lâmpada branco quando aceso
+        } else {
+            ctx.fillStyle = "#000";
+        }
+        ctx.beginPath();
+        ctx.arc(px+4, H-120, 10, 0, Math.PI*2);
+        ctx.fill();
+    }
+
+    // Personagem (destaque no claro)
+    renderPlayer(playerX, H-40, isLightOn);
+
+    // No escuro total, quase não se vê nada (Tensão total)
+    if(!isLightOn) {
+        ctx.fillStyle = "rgba(0,0,0,0.92)"; 
+        ctx.fillRect(0,0,W,H);
+    }
+}
+
+function renderPlayer(x, y, on) {
+    const sc = 0.8;
+    // Sombra
+    ctx.fillStyle = on ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0)";
+    ctx.beginPath(); ctx.ellipse(x, y, 15*sc, 5*sc, 0, 0, Math.PI*2); ctx.fill();
+    
+    // Filtro de brilho se a luz estiver on
+    if(on) {
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = "rgba(255,255,255,0.3)";
+    }
+
+    // Azul (Corpo)
+    ctx.fillStyle = on ? "#3b82f6" : "#0a1a3a";
+    ctx.beginPath(); ctx.roundRect(x-10*sc, y-45*sc, 20*sc, 30*sc, 5); ctx.fill();
+    // Pele
+    ctx.fillStyle = on ? "#f5c5a3" : "#3a2a1a";
+    ctx.beginPath(); ctx.arc(x, y-55*sc, 10*sc, 0, Math.PI*2); ctx.fill();
+    // Calça
+    ctx.fillStyle = on ? "#9ca3af" : "#222";
+    ctx.fillRect(x-8*sc, y-15*sc, 16*sc, 15*sc);
+    
+    ctx.shadowBlur = 0;
+}
+
+function endGame(win, msg) {
+    isOver = true;
+    clearInterval(loopId);
+    
+    if(dist > record) {
+        record = dist;
+        localStorage.setItem("ilumina_record", record);
+        document.getElementById("record").innerText = record;
+    }
+
+    const go = document.getElementById("game-over");
+    const title = document.getElementById("go-title");
+    const m = document.getElementById("go-msg");
+    const btn = document.getElementById("go-btn");
+    
+    go.style.display = "flex";
+    if(win) {
+        title.innerText = "🏆 VITÓRIA!";
+        title.style.color = "#4ade80";
+        btn.innerText = "Continuar";
+        m.innerHTML = `<div style="display:flex; align-items:center; gap:15px; background:rgba(255,255,255,0.05); padding:15px; border-radius:15px; text-align:left;">
+            <img src="prefeito.png" style="height:100px; mix-blend-mode:screen;">
+            <div>“Excelente! Você dominou o tempo da luz e atravessou com segurança. É assim que uma cidade inteligente protege seus cidadãos.”</div>
+        </div><br>` + msg + `<br><br><strong>Próximo nível: ${currentGoal + 500}m!</strong>`;
+        currentGoal += 500; // Aumentar o desafio para a próxima rodada
+        document.getElementById("maxDist").innerText = currentGoal;
+    } else {
+        title.innerText = "💥 OPS!";
+        title.style.color = "#ef4444";
+        btn.innerText = "Tentar Novamente";
+        m.innerHTML = `<div style="display:flex; align-items:center; gap:15px; background:rgba(255,255,255,0.05); padding:15px; border-radius:15px; text-align:left;">
+            <img src="prefeito.png" style="height:100px; mix-blend-mode:screen;">
+            <div>“Foi por pouco! Sem a iluminação certa, o risco aumenta muito. Tente de novo, mas com mais precisão.”</div>
+        </div><br>` + msg;
+    }
+}
+
+function reiniciar() {
+    dist = 0; playerX = 50;
+    comecarContagem();
+}
+
+window.onload = render;
+</script>
+
+</body>
+</html>
